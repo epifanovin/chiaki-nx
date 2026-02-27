@@ -379,8 +379,14 @@ bool MainApplication::Load()
 	});
 
 	brls::Logger::info("Load[10]: push activity");
+	brls::Box *main_menu_root = new brls::Box(brls::Axis::COLUMN);
+	main_menu_root->setGrow(1.0f);
+	main_menu_root->setDimensions(brls::View::AUTO, brls::View::AUTO);
+	this->rootFrame->setGrow(1.0f);
+	main_menu_root->addView(this->rootFrame);
+	main_menu_root->addView(new brls::BottomBar());
 	g_main_menu_started_at = std::chrono::steady_clock::now();
-	brls::Application::pushActivity(new brls::Activity(this->rootFrame));
+	brls::Application::pushActivity(new brls::Activity(main_menu_root));
 
 	brls::Logger::info("Load[11]: enter main loop");
 	while (brls::Application::mainLoop()) {

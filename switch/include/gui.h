@@ -36,9 +36,9 @@ class List : public ScrollingFrame
 
 			content_box = new Box(Axis::COLUMN);
 			content_box->setGrow(1.0f);
-			// Keep list rows clear of each other and away from the applet footer area.
+			// Keep list rows clear of each other without crowding the bottom area.
 			float padding_top = style["brls/tab_details/padding_top"] + 16.0f;
-			float padding_bottom = style["brls/tab_details/padding_bottom"] + style["brls/applet_frame/footer_height"] + 20.0f;
+			float padding_bottom = style["brls/tab_details/padding_bottom"] + 16.0f;
 			content_box->setPadding(
 				padding_top,
 				style["brls/tab_details/padding_right"] + horizontal_inset,
