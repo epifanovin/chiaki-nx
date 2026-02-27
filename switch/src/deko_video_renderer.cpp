@@ -143,16 +143,29 @@ bool DekoVideoRenderer::EnsureInitialized(AVFrame *frame, int width, int height)
 	return true;
 }
 
-void DekoVideoRenderer::UpdateFrameMapping(AVFrame *frame)
+bool DekoVideoRenderer::UpdateFrameMapping(AVFrame *frame)
 {
-	AVNVTegraMap *map = av_nvtegra_frame_get_fbuf_map(frame);
+	if(!frame || frame->format != AV_PIX_FMT_NVTEGRA)
+		return false;
+	if(!frame->buf[0] || !frame->buf[0]->data)
+		return false;
+	if(!frame->data[0] || !frame->data[1] || frame->data[1] < frame->data[0])
+		return false;
+
+	auto *nv_frame = reinterpret_cast<AVNVTegraFrame *>(frame->buf[0]->data);
+	if(!nv_frame->map_ref || !nv_frame->map_ref->data)
+		return false;
+
+	AVNVTegraMap *map = reinterpret_cast<AVNVTegraMap *>(nv_frame->map_ref->data);
 	if(!map)
-		return;
+		return false;
 
 	uint32_t handle = av_nvtegra_map_get_handle(map);
 	void *cpu_addr = av_nvtegra_map_get_addr(map);
 	uint32_t size = av_nvtegra_map_get_size(map);
 	uint32_t chroma_offset = (uint32_t)(frame->data[1] - frame->data[0]);
+	if(!cpu_addr || !size || chroma_offset >= size)
+		return false;
 
 	int mapping_index = -1;
 	for(size_t i = 0; i < frame_mappings.size(); i++)
@@ -190,7 +203,7 @@ void DekoVideoRenderer::UpdateFrameMapping(AVFrame *frame)
 	}
 
 	if(mapping_index == current_mapping_index)
-		return;
+		return true;
 
 	update_cmdbuf.clear();
 	update_cmdbuf.addMemory(
@@ -205,6 +218,7 @@ void DekoVideoRenderer::UpdateFrameMapping(AVFrame *frame)
 
 	queue.submitCommands(update_cmdbuf.finishList());
 	current_mapping_index = mapping_index;
+	return true;
 }
 
 bool DekoVideoRenderer::Draw(AVFrame *frame, int width, int height)
@@ -218,7 +232,8 @@ bool DekoVideoRenderer::Draw(AVFrame *frame, int width, int height)
 	if(!EnsureInitialized(frame, width, height))
 		return false;
 
-	UpdateFrameMapping(frame);
+	if(!UpdateFrameMapping(frame))
+		return false;
 	if(draw_cmdlist)
 		queue.submitCommands(draw_cmdlist);
 

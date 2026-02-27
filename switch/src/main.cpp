@@ -130,8 +130,11 @@ int main(int argc, char *argv[])
 	DiscoveryManager discoverymanager = DiscoveryManager();
 	{
 		// scope to delete MainApplication before SDL_Quit()
+		CHIAKI_LOGI(log, "MainApplication: constructing");
 		MainApplication app(&discoverymanager);
+		CHIAKI_LOGI(log, "MainApplication: entering Load()");
 		app.Load();
+		CHIAKI_LOGI(log, "MainApplication: Load() returned");
 	}
 
 	CHIAKI_LOGI(log, "Quit applet");

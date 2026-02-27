@@ -11,12 +11,11 @@
 #define SCREEN_W 1280
 #define SCREEN_H 720
 
-// TODO
-using namespace brls::i18n::literals; // for _i18n
+using namespace brls::literals; // for _i18n
 
 #define DIALOG(dialog, r)                                                       \
 	brls::Dialog *d_##dialog = new brls::Dialog(r);                             \
-	brls::GenericEvent::Callback cb_##dialog = [d_##dialog](brls::View *view) { \
+	brls::VoidEvent::Callback cb_##dialog = [d_##dialog]() {                    \
 		d_##dialog->close();                                                    \
 	};                                                                          \
 	d_##dialog->addButton("Ok", cb_##dialog);                                   \
@@ -27,6 +26,7 @@ using namespace brls::i18n::literals; // for _i18n
 HostInterface::HostInterface(Host *host)
 	: host(host)
 {
+	brls::Logger::info("HostInterface: ctor start ({})", host ? host->GetHostName() : "null");
 	this->settings = Settings::GetInstance();
 	this->log = this->settings->GetLogger();
 	this->io = IO::GetInstance();
@@ -40,8 +40,8 @@ HostInterface::HostInterface(Host *host)
 	this->addView(wakeup);
 
 	// message delimiter
-	brls::Label *info = new brls::Label(brls::LabelStyle::REGULAR,
-		"Host configuration", true);
+	brls::Label *info = new brls::Label();
+	info->setText("Host configuration");
 	this->addView(info);
 
 	// push opengl chiaki stream
@@ -53,6 +53,7 @@ HostInterface::HostInterface(Host *host)
 	// allow host to update controller state
 	this->host->SetEventRumbleCallback(std::bind(&IO::SetRumble, this->io, std::placeholders::_1, std::placeholders::_2));
 	this->host->SetReadControllerCallback(std::bind(&IO::UpdateControllerState, this->io, std::placeholders::_1, std::placeholders::_2));
+	brls::Logger::info("HostInterface: ctor done ({})", host ? host->GetHostName() : "null");
 }
 
 HostInterface::~HostInterface()
@@ -110,10 +111,10 @@ void HostInterface::Register(Host *host, std::function<void()> success_cb)
 	// the host is not registered yet
 	// use callback to ensure that the message is showed on screen
 	// before the Swkbd
-	auto pin_input_cb = [host](int pin) {
+	auto pin_input_cb = [host](long pin) {
 		// prevent users form messing with the gui
 		brls::Application::blockInputs();
-		int ret = host->Register(pin);
+		int ret = host->Register((int)pin);
 		if(ret != HOST_REGISTER_OK)
 		{
 			switch(ret)
@@ -131,8 +132,10 @@ void HostInterface::Register(Host *host, std::function<void()> success_cb)
 		}
 	};
 	// the pin is 8 digit
-	bool success = brls::Swkbd::openForNumber(pin_input_cb,
+	bool success = brls::Application::getImeManager()->openForNumber(pin_input_cb,
 		"Please enter your PlayStation registration PIN code", "8 digits without spaces", 8, "", "", "");
+	if(!success)
+		brls::Application::notify("Unable to open keyboard");
 }
 
 void HostInterface::Register()
@@ -208,7 +211,7 @@ void HostInterface::Disconnect()
 {
 	if(this->connected)
 	{
-		brls::Application::popView();
+		brls::Application::popActivity();
 		this->host->StopSession();
 		this->connected = false;
 	}
@@ -221,13 +224,13 @@ void HostInterface::Stream()
 	this->connected = true;
 	// https://github.com/natinusala/borealis/issues/59
 	// disable 60 fps limit
-	brls::Application::setMaximumFPS(0);
+	brls::Application::setLimitedFPS(0);
 
 	// show FPS counter
 	// brls::Application::setDisplayFramerate(true);
 
 	// push raw opengl stream over borealis
-	brls::Application::pushView(new PSRemotePlay(this->host));
+	brls::Application::pushActivity(new brls::Activity(new PSRemotePlay(this->host)));
 }
 
 void HostInterface::CloseStream(ChiakiQuitEvent *quit)
@@ -236,7 +239,7 @@ void HostInterface::CloseStream(ChiakiQuitEvent *quit)
 	brls::Application::unblockInputs();
 
 	// restore 60 fps limit
-	brls::Application::setMaximumFPS(60);
+	brls::Application::setLimitedFPS(60);
 
 	// brls::Application::setDisplayFramerate(false);
 	/*
@@ -256,7 +259,7 @@ void HostInterface::EnterPin(bool isError)
 		brls::Application::notify("Wrong PIN");
 	}
 	
-	brls::Application::pushView(new EnterPinView(this->host, isError));
+	brls::Application::pushActivity(new brls::Activity(new EnterPinView(this->host, isError)));
 }
 
 MainApplication::MainApplication(DiscoveryManager *discoverymanager)
@@ -276,16 +279,22 @@ MainApplication::~MainApplication()
 
 bool MainApplication::Load()
 {
+	brls::Logger::info("Load[1]: start");
 	this->discoverymanager->SetService(true);
 	// Init the app
-	brls::Logger::setLogLevel(brls::LogLevel::DEBUG);
+	brls::Logger::info("Load[2]: set logger level");
+	brls::Logger::setLogLevel(brls::LogLevel::LOG_DEBUG);
 
-	brls::i18n::loadTranslations();
-	if(!brls::Application::init("Chiaki Remote play"))
+	brls::Logger::info("Load[3]: application init");
+	if(!brls::Application::init())
 	{
 		brls::Logger::error("Unable to init Borealis application");
 		return false;
 	}
+	brls::Logger::info("Load[4]: create window");
+	brls::Application::createWindow("Chiaki Remote play");
+	brls::Logger::info("Load[5]: load translations");
+	brls::loadTranslations();
 
 	// init chiaki gl after borealis
 	// let borealis manage the main screen/window
@@ -294,6 +303,7 @@ bool MainApplication::Load()
 	// 	brls::Logger::error("Failed to initiate Video");
 	// }
 
+	brls::Logger::info("Load[6]: init controller");
 	brls::Logger::info("Load SDL/HiD controller");
 	if(!io->InitController())
 	{
@@ -301,43 +311,58 @@ bool MainApplication::Load()
 	}
 
 	// Create a view
+	brls::Logger::info("Load[7]: create root frame");
 	this->rootFrame = new brls::TabFrame();
-	this->rootFrame->setTitle("Chiaki-ng: Open Source PlayStation Remote Play Client");
-	this->rootFrame->setIcon(BOREALIS_ASSET("icon.png"));
-
-	brls::List *config = new brls::List();
-	brls::List *add_host = new brls::List();
-	BuildConfigurationMenu(config);
-	BuildAddHostConfigurationMenu(add_host);
 
 	std::map<std::string, Host> *hosts = this->settings->GetHostsMap();
+	brls::Logger::info("Load[8]: build host tabs ({})", hosts->size());
 	for (auto it = hosts->begin(); it != hosts->end(); ++it)
 	{
-		if (this->host_menuitems.find(&it->second) == this->host_menuitems.end() &&
-		    (it->second.HasRPkey() || it->second.IsDiscovered()))
+		if(it->second.HasRPkey() || it->second.IsDiscovered())
 		{
-		HostInterface *new_host = new HostInterface(&it->second);
-		this->host_menuitems[&it->second] = new_host;
-		BuildConfigurationMenu(new_host, &it->second);
-		this->rootFrame->addTab(it->second.GetHostName().c_str(), new_host);
+			Host *host = &it->second;
+			this->rootFrame->addTab(it->second.GetHostName().c_str(), [this, host]() -> brls::View * {
+				brls::Logger::info("Tab creator: host tab start ({})", host ? host->GetHostName() : "null");
+				HostInterface *view = new HostInterface(host);
+				this->BuildConfigurationMenu(view, host);
+				brls::Logger::info("Tab creator: host tab done ({})", host ? host->GetHostName() : "null");
+				return view;
+			});
 		}
 	}
 
 	// Static tabs under the registered targets
+	brls::Logger::info("Load[9]: build static tabs");
 	this->rootFrame->addSeparator();
-	this->rootFrame->addTab("Configuration", config);
-	this->rootFrame->addTab("Add Manual Host", add_host);
+	this->rootFrame->addTab("Configuration", [this]() -> brls::View * {
+		brls::Logger::info("Tab creator: configuration start");
+		brls::List *config = new brls::List();
+		this->BuildConfigurationMenu(config);
+		brls::Logger::info("Tab creator: configuration done");
+		return config;
+	});
+	this->rootFrame->addTab("Add Manual Host", [this]() -> brls::View * {
+		brls::Logger::info("Tab creator: add host start");
+		brls::List *add_host = new brls::List();
+		this->BuildAddHostConfigurationMenu(add_host);
+		brls::Logger::info("Tab creator: add host done");
+		return add_host;
+	});
 
-	brls::Application::pushView(this->rootFrame);
+	brls::Logger::info("Load[10]: push activity");
+	brls::Application::pushActivity(new brls::Activity(this->rootFrame));
 
+	brls::Logger::info("Load[11]: enter main loop");
 	while (brls::Application::mainLoop()) {
 	}
+	brls::Logger::info("Load[12]: main loop ended");
 	
 	return true;
 }
 
 bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 {
+	brls::Logger::info("BuildConfigurationMenu: start ({})", host ? host->GetHostName() : "global");
 	std::string psn_account_id_string = this->settings->GetPSNAccountID(host);
 	brls::InputListItem *psn_account_id = new brls::InputListItem("PSN Account ID", psn_account_id_string,
 		"Account ID in base64 format", "PS5 or PS4 System Software version 7.00 and greater", CHIAKI_PSN_ACCOUNT_ID_SIZE * 2,
@@ -568,8 +593,8 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 
 	if(host != nullptr)
 	{	
-	    brls::Label *info = new brls::Label(brls::LabelStyle::REGULAR,
-		"Host information", true);
+	    brls::Label *info = new brls::Label();
+		info->setText("Host information");
 	    ls->addView(info);
 	
 	    std::string host_name_string = this->settings->GetHostName(host);
@@ -602,11 +627,13 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 		ls->addView(host_regist_state_item);
 	}
 
+	brls::Logger::info("BuildConfigurationMenu: done ({})", host ? host->GetHostName() : "global");
 	return true;
 }
 
 void MainApplication::BuildAddHostConfigurationMenu(brls::List *add_host)
 {
+	brls::Logger::info("BuildAddHostConfigurationMenu: start");
 	// create host for wan connection
 	// brls::Label* add_host_label = new brls::Label(brls::LabelStyle::REGULAR,
 	// 	"Add Host configuration", true);
@@ -695,4 +722,5 @@ void MainApplication::BuildAddHostConfigurationMenu(brls::List *add_host)
 	register_host->getClickEvent()->subscribe(register_host_cb);
 
 	add_host->addView(register_host);
+	brls::Logger::info("BuildAddHostConfigurationMenu: done");
 }

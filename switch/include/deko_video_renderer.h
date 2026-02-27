@@ -42,10 +42,10 @@ private:
 		dk::Image chroma;
 		dk::ImageDescriptor luma_desc;
 		dk::ImageDescriptor chroma_desc;
-	};
+		};
 
-	bool EnsureInitialized(AVFrame *frame, int width, int height);
-	void UpdateFrameMapping(AVFrame *frame);
+		bool EnsureInitialized(AVFrame *frame, int width, int height);
+		bool UpdateFrameMapping(AVFrame *frame);
 
 	bool initialized = false;
 	int frame_width = 0;

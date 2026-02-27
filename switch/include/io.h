@@ -79,9 +79,10 @@ class IO
 		AVCodecContext *codec_context;
 		AVFrame **frames;
 		uintptr_t origin_ptr[MAX_FRAME_COUNT_MAX][MAX_NV12_PLANE_COUNT] = {};
-		int frame_queue_size = DEFAULT_FRAME_QUEUE_SIZE;
-		std::atomic<int> current_frame_index{0};
-		int next_frame_index = 0;
+			int frame_queue_size = DEFAULT_FRAME_QUEUE_SIZE;
+			std::atomic<int> current_frame_index{0};
+			std::atomic<bool> has_decoded_frame{false};
+			int next_frame_index = 0;
 		bool frames_have_sw_buffers = false;
 		bool use_deko_renderer = false;
 		AVFrame *tmp_frame;

@@ -11,10 +11,12 @@ class EnterPinView :public brls::View
 		Settings *settings;
 		ChiakiLog *log = nullptr;
 		bool isError = false;
+		bool ime_requested = false;
+		bool input_blocked = false;
 	public:
 		EnterPinView(Host *host, bool isError);
 		~EnterPinView();
 		void ClosePinView();
-		void draw(NVGcontext *vg, int x, int y, unsigned width, unsigned height, brls::Style *style, brls::FrameContext *ctx) override;
+		void draw(NVGcontext *vg, float x, float y, float width, float height, brls::Style style, brls::FrameContext *ctx) override;
 };
 #endif // CHIAKI_ENTER_PIN_VIEW_H

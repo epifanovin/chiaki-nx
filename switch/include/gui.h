@@ -3,12 +3,6 @@
 #ifndef CHIAKI_GUI_H
 #define CHIAKI_GUI_H
 
-#include <glad.h>
-#include <GLFW/glfw3.h>
-#include "nanovg.h"
-#include "nanovg_gl.h"
-#include "nanovg_gl_utils.h"
-
 #include <map>
 #include <thread>
 #include <fmt/format.h>
@@ -21,6 +15,130 @@
 #include "switch.h"
 #include "views/enter_pin_view.h"
 #include "views/ps_remote_play.h"
+
+namespace brls
+{
+
+class List : public ScrollingFrame
+{
+	private:
+		Box *content_box = nullptr;
+
+	public:
+		List()
+			: ScrollingFrame()
+		{
+			Style style = getStyle();
+			setGrow(1.0f);
+			setScrollingBehavior(ScrollingBehavior::NATURAL);
+
+			content_box = new Box(Axis::COLUMN);
+			content_box->setGrow(1.0f);
+			content_box->setPadding(
+				style["brls/tab_details/padding_top"],
+				style["brls/tab_details/padding_right"],
+				style["brls/tab_details/padding_bottom"],
+				style["brls/tab_details/padding_left"]);
+			setContentView(content_box);
+		}
+
+		void addView(View *view) override
+		{
+			if(content_box)
+				content_box->addView(view);
+		}
+
+		void removeView(View *view, bool free = true) override
+		{
+			if(content_box)
+				content_box->removeView(view, free);
+		}
+
+		void clearViews(bool free = true) override
+		{
+			if(content_box)
+				content_box->clearViews(free);
+		}
+};
+
+class ListItem : public DetailCell
+{
+	private:
+		GenericEvent click_event;
+
+	public:
+		explicit ListItem(const std::string &title, const std::string &value = "")
+		{
+			setText(title);
+			setDetailText(value);
+			registerClickAction([this](View *view) {
+				click_event.fire(view);
+				return true;
+			});
+		}
+
+		GenericEvent *getClickEvent()
+		{
+			return &click_event;
+		}
+
+		void setValue(const std::string &value)
+		{
+			setDetailText(value);
+		}
+};
+
+class InputListItem : public InputCell
+{
+	private:
+		GenericEvent click_event;
+
+	public:
+		InputListItem(
+			const std::string &title,
+			const std::string &value,
+			const std::string &placeholder = "",
+			const std::string &hint = "",
+			int maxInputLength = 32,
+			int kbdDisableBitmask = 0)
+		{
+			init(title, value, [this](std::string text) {
+				(void)text;
+				click_event.fire(this);
+			}, placeholder, hint, maxInputLength, kbdDisableBitmask);
+		}
+
+		GenericEvent *getClickEvent()
+		{
+			return &click_event;
+		}
+};
+
+class SelectListItem : public SelectorCell
+{
+	private:
+		Event<int> value_selected_event;
+
+	public:
+		SelectListItem(const std::string &title, std::vector<std::string> options, int selected = 0)
+		{
+			init(title, options, selected, [this](int value) {
+				value_selected_event.fire(value);
+			});
+		}
+
+		Event<int> *getValueSelectedEvent()
+		{
+			return &value_selected_event;
+		}
+
+		int getSelectedValue() const
+		{
+			return const_cast<SelectListItem *>(this)->getSelection();
+		}
+};
+
+} // namespace brls
 
 class HostInterface : public brls::List
 {
@@ -54,7 +172,6 @@ class MainApplication
 		DiscoveryManager *discoverymanager;
 		IO *io;
 		brls::TabFrame *rootFrame;
-		std::map<Host *, HostInterface *> host_menuitems;
 
 		bool BuildConfigurationMenu(brls::List *, Host *host = nullptr);
 		void BuildAddHostConfigurationMenu(brls::List *);

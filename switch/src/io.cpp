@@ -117,7 +117,7 @@ IO::IO()
 IO::~IO()
 {
 	//FreeJoystick();
-	if(this->sdl_audio_device_id <= 0)
+	if(this->sdl_audio_device_id > 0)
 	{
 		SDL_CloseAudioDevice(this->sdl_audio_device_id);
 	}
@@ -310,6 +310,7 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 	}
 
 	this->current_frame_index.store(this->next_frame_index, std::memory_order_release);
+	this->has_decoded_frame.store(true, std::memory_order_release);
 	this->next_frame_index = (this->next_frame_index + 1) % this->frame_queue_size;
 	return true;
 }
@@ -405,6 +406,7 @@ bool IO::InitVideo(int video_width, int video_height, int screen_width, int scre
 
 	this->frames_have_sw_buffers = !this->use_deko_renderer;
 	this->current_frame_index.store(0, std::memory_order_release);
+	this->has_decoded_frame.store(false, std::memory_order_release);
 	this->next_frame_index = 0;
 
 	for(int i = 0; i < this->frame_queue_size; i++)
@@ -477,9 +479,10 @@ bool IO::FreeVideo()
 				av_frame_free(&this->frames[i]);
 			}
 		}
-		free(this->frames);
-		this->frames = nullptr;
+			free(this->frames);
+			this->frames = nullptr;
 	}
+	this->has_decoded_frame.store(false, std::memory_order_release);
 
 	if(this->tmp_frame)
 		av_frame_free(&this->tmp_frame);
@@ -1212,6 +1215,9 @@ inline void IO::SetOpenGlNV12Pixels(AVFrame *frame)
 inline void IO::OpenGlDraw()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
+	if(!this->has_decoded_frame.load(std::memory_order_acquire))
+		return;
+
 	int frame_index = this->current_frame_index.load(std::memory_order_acquire);
 	AVFrame *frame = this->frames ? this->frames[frame_index] : nullptr;
 	if(!frame)
@@ -1329,6 +1335,9 @@ bool IO::MainLoop()
 {
 	if(this->use_deko_renderer && this->deko_video_renderer)
 	{
+		if(!this->has_decoded_frame.load(std::memory_order_acquire))
+			return !this->quit;
+
 		int frame_index = this->current_frame_index.load(std::memory_order_acquire);
 		AVFrame *frame = this->frames ? this->frames[frame_index] : nullptr;
 		if(frame)

@@ -11,6 +11,23 @@ fi
 
 SCRIPTDIR=$(dirname "$0")
 BASEDIR=$(realpath "${SCRIPTDIR}/../../")
+if [ -n "${DEVKITPRO}" ] && [ -f "${DEVKITPRO}/cmake/Switch.cmake" ]; then
+	DKPRO="${DEVKITPRO}"
+elif [ -f "/opt/devkitpro/cmake/Switch.cmake" ]; then
+	DKPRO="/opt/devkitpro"
+elif [ -f "${HOME}/opt/devkitpro/cmake/Switch.cmake" ]; then
+	DKPRO="${HOME}/opt/devkitpro"
+elif [ -n "${DEVKITPRO}" ]; then
+	DKPRO="${DEVKITPRO}"
+elif [ -d "/opt/devkitpro" ]; then
+	DKPRO="/opt/devkitpro"
+elif [ -d "${HOME}/opt/devkitpro" ]; then
+	DKPRO="${HOME}/opt/devkitpro"
+else
+	DKPRO="/opt/devkitpro"
+fi
+export DEVKITPRO="${DKPRO}"
+export DEVKITA64="${DEVKITPRO}/devkitA64"
 
 build_chiaki (){
 	pushd "${BASEDIR}"
@@ -23,8 +40,8 @@ build_chiaki (){
 		cmake_args=(
 			-B "${build}"
 			-GNinja
-			-DCMAKE_PREFIX_PATH=/opt/devkitpro/portlibs/switch/
-			-DCHIAKI_USE_SYSTEM_CURL=ON
+			-DCMAKE_PREFIX_PATH=${DKPRO}/portlibs/switch/
+			-DCHIAKI_USE_SYSTEM_CURL=OFF
 			-DCHIAKI_SWITCH_RENDERER=DEKO3D
 			-DCHIAKI_SWITCH_DEKO3D=ON
 			-DCHIAKI_ENABLE_TESTS=OFF

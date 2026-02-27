@@ -84,9 +84,11 @@ target_link_libraries(chiaki-borealis
 if(CHIAKI_IS_SWITCH)
 	# libnx is forced by the switch toolchain
 	find_library(Z z)
+	find_library(EGL_LIB EGL)
+	find_library(GLESV2_LIB GLESv2)
 	find_library(GLAPI glapi) # TODO: make it transitive from borealis
 	find_library(DRM_NOUVEAU drm_nouveau) # TODO: make it transitive from borealis
-	target_link_libraries(chiaki-borealis ${Z} ${GLAPI} ${DRM_NOUVEAU})
+	target_link_libraries(chiaki-borealis ${Z} ${EGL_LIB} ${GLESV2_LIB} ${GLAPI} ${DRM_NOUVEAU})
 endif()
 
 install(TARGETS chiaki-borealis
@@ -96,6 +98,7 @@ install(TARGETS chiaki-borealis
 if(CHIAKI_IS_SWITCH)
 	set(CHIAKI_SWITCH_ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/switch_romfs")
 	set(CHIAKI_SWITCH_SHADER_DIR "${CHIAKI_SWITCH_ROMFS_DIR}/shaders")
+	set(CHIAKI_BOREALIS_DEKO_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/borealis/library/lib/extern/nanovg/deko3d/shaders")
 
 	if(CHIAKI_SWITCH_DEKO3D)
 		if(NOT NX_UAM_EXE)
@@ -107,9 +110,15 @@ if(CHIAKI_IS_SWITCH)
 		add_custom_target(chiaki_switch_romfs_assets ALL
 			COMMAND ${CMAKE_COMMAND} -E rm -rf "${CHIAKI_SWITCH_ROMFS_DIR}"
 			COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/res" "${CHIAKI_SWITCH_ROMFS_DIR}"
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${CHIAKI_SWITCH_ROMFS_DIR}/font"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CHIAKI_SWITCH_ROMFS_DIR}/inter/switch_font.ttf" "${CHIAKI_SWITCH_ROMFS_DIR}/font/font.ttf"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CHIAKI_SWITCH_ROMFS_DIR}/inter/switch_icons.ttf" "${CHIAKI_SWITCH_ROMFS_DIR}/font/icon.ttf"
 			COMMAND ${CMAKE_COMMAND} -E make_directory "${CHIAKI_SWITCH_SHADER_DIR}"
 			COMMAND ${NX_UAM_EXE} -s vert -o "${CHIAKI_SWITCH_SHADER_DIR}/basic_vsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/basic_vsh.glsl"
 			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/texture_fsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/texture_fsh.glsl"
+			COMMAND ${NX_UAM_EXE} -s vert -o "${CHIAKI_SWITCH_SHADER_DIR}/fill_vsh.dksh" "${CHIAKI_BOREALIS_DEKO_SHADER_DIR}/fill_vsh.glsl"
+			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/fill_fsh.dksh" "${CHIAKI_BOREALIS_DEKO_SHADER_DIR}/fill_fsh.glsl"
+			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/fill_aa_fsh.dksh" "${CHIAKI_BOREALIS_DEKO_SHADER_DIR}/fill_aa_fsh.glsl"
 			VERBATIM)
 	else()
 		add_custom_target(chiaki_switch_romfs_assets ALL
