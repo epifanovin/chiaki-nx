@@ -129,6 +129,9 @@ CHIAKI_EXPORT void chiaki_connect_video_profile_preset(ChiakiConnectVideoProfile
 		case CHIAKI_VIDEO_FPS_PRESET_60:
 			profile->max_fps = 60;
 			break;
+		case CHIAKI_VIDEO_FPS_PRESET_120:
+			profile->max_fps = 120;
+			break;
 		default:
 			profile->max_fps = 0;
 			break;

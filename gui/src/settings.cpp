@@ -404,7 +404,8 @@ void Settings::SetResolutionRemotePS5(ChiakiVideoResolutionPreset resolution)
 
 static const QMap<ChiakiVideoFPSPreset, int> fps_values = {
 	{ CHIAKI_VIDEO_FPS_PRESET_30, 30 },
-	{ CHIAKI_VIDEO_FPS_PRESET_60, 60 }
+	{ CHIAKI_VIDEO_FPS_PRESET_60, 60 },
+	{ CHIAKI_VIDEO_FPS_PRESET_120, 120 }
 };
 
 static const ChiakiVideoFPSPreset fps_default = CHIAKI_VIDEO_FPS_PRESET_60;

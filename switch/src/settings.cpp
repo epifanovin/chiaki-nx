@@ -333,6 +333,8 @@ std::string Settings::FPSPresetToString(ChiakiVideoFPSPreset fps)
 			return "30";
 		case CHIAKI_VIDEO_FPS_PRESET_60:
 			return "60";
+		case CHIAKI_VIDEO_FPS_PRESET_120:
+			return "120";
 	}
 	return "UNKNOWN";
 }
@@ -345,13 +347,17 @@ int Settings::FPSPresetToInt(ChiakiVideoFPSPreset fps)
 			return 30;
 		case CHIAKI_VIDEO_FPS_PRESET_60:
 			return 60;
+		case CHIAKI_VIDEO_FPS_PRESET_120:
+			return 120;
 	}
 	return 0;
 }
 
 ChiakiVideoFPSPreset Settings::StringToFPSPreset(std::string value)
 {
-	if(value.compare("60") == 0)
+	if(value.compare("120") == 0)
+		return CHIAKI_VIDEO_FPS_PRESET_120;
+	else if(value.compare("60") == 0)
 		return CHIAKI_VIDEO_FPS_PRESET_60;
 	else if(value.compare("30") == 0)
 		return CHIAKI_VIDEO_FPS_PRESET_30;

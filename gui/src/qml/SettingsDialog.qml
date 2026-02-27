@@ -948,9 +948,10 @@ DialogView {
                     C.ComboBox {
                         id: fpsLocalPS4
                         Layout.preferredWidth: 400
-                        model: [qsTr("30 fps"), qsTr("60 fps (Default)")]
-                        currentIndex: (Chiaki.settings.fpsLocalPS4 / 30) - 1
-                        onActivated: (index) => Chiaki.settings.fpsLocalPS4 = (index + 1) * 30
+                        property var fpsValues: [30, 60, 120]
+                        model: [qsTr("30 fps"), qsTr("60 fps (Default)"), qsTr("120 fps (Experimental)")]
+                        currentIndex: Math.max(0, fpsValues.indexOf(Chiaki.settings.fpsLocalPS4))
+                        onActivated: (index) => Chiaki.settings.fpsLocalPS4 = fpsValues[index]
                         visible: selectedConsole == SettingsDialog.Console.PS4
                         KeyNavigation.up: resolutionLocalPS4
                         KeyNavigation.right: fpsRemotePS4
@@ -966,9 +967,10 @@ DialogView {
                     C.ComboBox {
                         id: fpsRemotePS4
                         Layout.preferredWidth: 400
-                        model: [qsTr("30 fps"), qsTr("60 fps (Default)")]
-                        currentIndex: (Chiaki.settings.fpsRemotePS4 / 30) - 1
-                        onActivated: (index) => Chiaki.settings.fpsRemotePS4 = (index + 1) * 30
+                        property var fpsValues: [30, 60, 120]
+                        model: [qsTr("30 fps"), qsTr("60 fps (Default)"), qsTr("120 fps (Experimental)")]
+                        currentIndex: Math.max(0, fpsValues.indexOf(Chiaki.settings.fpsRemotePS4))
+                        onActivated: (index) => Chiaki.settings.fpsRemotePS4 = fpsValues[index]
                         visible: selectedConsole == SettingsDialog.Console.PS4
                         KeyNavigation.up: resolutionRemotePS4
                         KeyNavigation.left: fpsLocalPS4
@@ -984,9 +986,10 @@ DialogView {
                     C.ComboBox {
                         id: fpsLocalPS5
                         Layout.preferredWidth: 400
-                        model: [qsTr("30 fps"), qsTr("60 fps (Default)")]
-                        currentIndex: (Chiaki.settings.fpsLocalPS5 / 30) - 1
-                        onActivated: (index) => Chiaki.settings.fpsLocalPS5 = (index + 1) * 30
+                        property var fpsValues: [30, 60, 120]
+                        model: [qsTr("30 fps"), qsTr("60 fps (Default)"), qsTr("120 fps (Experimental)")]
+                        currentIndex: Math.max(0, fpsValues.indexOf(Chiaki.settings.fpsLocalPS5))
+                        onActivated: (index) => Chiaki.settings.fpsLocalPS5 = fpsValues[index]
                         visible: selectedConsole == SettingsDialog.Console.PS5
                         KeyNavigation.up: resolutionLocalPS5
                         KeyNavigation.right: fpsRemotePS5
@@ -1002,9 +1005,10 @@ DialogView {
                     C.ComboBox {
                         id: fpsRemotePS5
                         Layout.preferredWidth: 400
-                        model: [qsTr("30 fps"), qsTr("60 fps (Default)")]
-                        currentIndex: (Chiaki.settings.fpsRemotePS5 / 30) - 1
-                        onActivated: (index) => Chiaki.settings.fpsRemotePS5 = (index + 1) * 30
+                        property var fpsValues: [30, 60, 120]
+                        model: [qsTr("30 fps"), qsTr("60 fps (Default)"), qsTr("120 fps (Experimental)")]
+                        currentIndex: Math.max(0, fpsValues.indexOf(Chiaki.settings.fpsRemotePS5))
+                        onActivated: (index) => Chiaki.settings.fpsRemotePS5 = fpsValues[index]
                         visible: selectedConsole == SettingsDialog.Console.PS5
                         KeyNavigation.up: resolutionRemotePS5
                         KeyNavigation.left: fpsLocalPS5

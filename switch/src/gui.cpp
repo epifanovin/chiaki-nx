@@ -478,27 +478,34 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	ls->addView(resolution);
 
 	ChiakiVideoFPSPreset fps_preset = this->settings->GetVideoFPS(host);
+	value = 1; // default: 60fps
 	switch(fps_preset)
 	{
-		case CHIAKI_VIDEO_FPS_PRESET_60:
+		case CHIAKI_VIDEO_FPS_PRESET_120:
 			value = 0;
 			break;
-		case CHIAKI_VIDEO_FPS_PRESET_30:
+		case CHIAKI_VIDEO_FPS_PRESET_60:
 			value = 1;
+			break;
+		case CHIAKI_VIDEO_FPS_PRESET_30:
+			value = 2;
 			break;
 	}
 
 	brls::SelectListItem *fps = new brls::SelectListItem(
-		"FPS", { "60fps", "30fps" }, value);
+		"FPS", { "120fps (experimental)", "60fps", "30fps" }, value);
 
 	auto fps_cb = [this, host](int result) {
 		ChiakiVideoFPSPreset value = CHIAKI_VIDEO_FPS_PRESET_60;
 		switch(result)
 		{
 			case 0:
-				value = CHIAKI_VIDEO_FPS_PRESET_60;
+				value = CHIAKI_VIDEO_FPS_PRESET_120;
 				break;
 			case 1:
+				value = CHIAKI_VIDEO_FPS_PRESET_60;
+				break;
+			case 2:
 				value = CHIAKI_VIDEO_FPS_PRESET_30;
 				break;
 		}

@@ -70,7 +70,7 @@ class Settings
 			{RP_KEY_TYPE, std::regex("^\\s*rp_key_type\\s*=\\s*\"?(\\d)\"?")},
 			{RP_REGIST_KEY, std::regex("^\\s*rp_regist_key\\s*=\\s*\"?([\\w/=+]+)\"?")},
 				{VIDEO_RESOLUTION, std::regex("^\\s*video_resolution\\s*=\\s*\"?(1080p|720p|540p|360p)\"?")},
-				{VIDEO_FPS, std::regex("^\\s*video_fps\\s*=\\s*\"?(60|30)\"?")},
+				{VIDEO_FPS, std::regex("^\\s*video_fps\\s*=\\s*\"?(120|60|30)\"?")},
 				{PACKET_LOSS_MAX, std::regex("^\\s*packet_loss_max\\s*=\\s*\"?([0-9]+(?:\\.[0-9]+)?)\"?")},
 				{ENABLE_IDR_ON_FEC_FAILURE, std::regex("^\\s*enable_idr_on_fec_failure\\s*=\\s*\"?(1|0|true|false)\"?")},
 				{DECODE_QUEUE_SIZE, std::regex("^\\s*decode_queue_size\\s*=\\s*\"?(\\d+)\"?")},

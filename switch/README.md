@@ -41,7 +41,7 @@ host_addr = *.*.*.*
 psn_online_id = ps_online_id
 # required (PS4>7.0 Only): https://git.sr.ht/~thestr4ng3r/chiaki/tree/master/item/README.md#obtaining-your-psn-accountid
 psn_account_id = ps_base64_account_id
-# optional(default 60): remote play fps (must be 30 or 60)
+# optional(default 60): remote play fps (must be 30, 60 or 120)
 video_fps = 60
 # optional(default 720p): remote play resolution (must be 720p, 540p or 360p)
 video_resolution = 720p
