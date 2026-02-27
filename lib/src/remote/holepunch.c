@@ -68,6 +68,42 @@
 #include "../utils.h"
 #include "stun.h"
 
+#ifndef CURLWS_TEXT
+struct curl_ws_frame
+{
+	int age;
+	int flags;
+	curl_off_t offset;
+	size_t bytesleft;
+};
+#define CURLWS_TEXT 1
+#define CURLWS_BINARY 2
+#define CURLWS_CONT 4
+#define CURLWS_CLOSE 8
+#define CURLWS_PING 16
+#define CURLWS_PONG 32
+#define CURLWS_OFFSET 64
+static inline CURLcode curl_ws_send(CURL *curl, const void *buffer, size_t buflen, size_t *sent, curl_off_t fragsize, unsigned int flags)
+{
+	(void)curl;
+	(void)buffer;
+	(void)buflen;
+	(void)sent;
+	(void)fragsize;
+	(void)flags;
+	return CURLE_NOT_BUILT_IN;
+}
+static inline CURLcode curl_ws_recv(CURL *curl, void *buffer, size_t buflen, size_t *recv, const struct curl_ws_frame **meta)
+{
+	(void)curl;
+	(void)buffer;
+	(void)buflen;
+	(void)recv;
+	(void)meta;
+	return CURLE_NOT_BUILT_IN;
+}
+#endif
+
 #define UUIDV4_STR_LEN 37
 #define SECOND_US 1000000L
 #define MILLISECONDS_US 1000L
