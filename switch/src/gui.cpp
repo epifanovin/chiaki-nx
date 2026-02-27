@@ -2,6 +2,7 @@
 
 #include "gui.h"
 #include <array>
+#include <chrono>
 #include <chiaki/log.h>
 #include "views/enter_pin_view.h"
 #include "views/ps_remote_play.h"
@@ -12,6 +13,27 @@
 #define SCREEN_H 720
 
 using namespace brls::literals; // for _i18n
+
+static std::chrono::steady_clock::time_point g_main_menu_started_at;
+
+static std::string menuTabTitle(const std::string &host_name)
+{
+	static constexpr size_t MAX_TAB_TITLE_LEN = 12;
+	if(host_name.size() <= MAX_TAB_TITLE_LEN)
+		return host_name;
+	return host_name.substr(0, MAX_TAB_TITLE_LEN - 3) + "...";
+}
+
+static bool exitToHbMenu(brls::View *view)
+{
+	(void)view;
+	// Ignore stale START/+ press state right after launch (common after netloader handoff).
+	const auto now = std::chrono::steady_clock::now();
+	if(now - g_main_menu_started_at < std::chrono::milliseconds(1500))
+		return true;
+	brls::Application::quit();
+	return true;
+}
 
 #define DIALOG(dialog, r)                                                       \
 	brls::Dialog *d_##dialog = new brls::Dialog(r);                             \
@@ -38,6 +60,8 @@ HostInterface::HostInterface(Host *host)
 	brls::ListItem *wakeup = new brls::ListItem("Wakeup");
 	wakeup->getClickEvent()->subscribe(std::bind(&HostInterface::Wakeup, this, std::placeholders::_1));
 	this->addView(wakeup);
+
+	this->registerAction("Exit to Homebrew Menu", brls::BUTTON_START, exitToHbMenu);
 
 	// message delimiter
 	brls::Label *info = new brls::Label();
@@ -313,6 +337,8 @@ bool MainApplication::Load()
 	// Create a view
 	brls::Logger::info("Load[7]: create root frame");
 	this->rootFrame = new brls::TabFrame();
+	// Keep the + hint visible on the main menu even when focus is on the sidebar.
+	this->rootFrame->registerAction("Exit to Homebrew Menu", brls::BUTTON_START, exitToHbMenu);
 
 	std::map<std::string, Host> *hosts = this->settings->GetHostsMap();
 	brls::Logger::info("Load[8]: build host tabs ({})", hosts->size());
@@ -321,7 +347,8 @@ bool MainApplication::Load()
 		if(it->second.HasRPkey() || it->second.IsDiscovered())
 		{
 			Host *host = &it->second;
-			this->rootFrame->addTab(it->second.GetHostName().c_str(), [this, host]() -> brls::View * {
+			const std::string tab_title = menuTabTitle(it->second.GetHostName());
+			this->rootFrame->addTab(tab_title, [this, host]() -> brls::View * {
 				brls::Logger::info("Tab creator: host tab start ({})", host ? host->GetHostName() : "null");
 				HostInterface *view = new HostInterface(host);
 				this->BuildConfigurationMenu(view, host);
@@ -337,6 +364,7 @@ bool MainApplication::Load()
 	this->rootFrame->addTab("Configuration", [this]() -> brls::View * {
 		brls::Logger::info("Tab creator: configuration start");
 		brls::List *config = new brls::List();
+		config->registerAction("Exit to Homebrew Menu", brls::BUTTON_START, exitToHbMenu);
 		this->BuildConfigurationMenu(config);
 		brls::Logger::info("Tab creator: configuration done");
 		return config;
@@ -344,12 +372,14 @@ bool MainApplication::Load()
 	this->rootFrame->addTab("Add Manual Host", [this]() -> brls::View * {
 		brls::Logger::info("Tab creator: add host start");
 		brls::List *add_host = new brls::List();
+		add_host->registerAction("Exit to Homebrew Menu", brls::BUTTON_START, exitToHbMenu);
 		this->BuildAddHostConfigurationMenu(add_host);
 		brls::Logger::info("Tab creator: add host done");
 		return add_host;
 	});
 
 	brls::Logger::info("Load[10]: push activity");
+	g_main_menu_started_at = std::chrono::steady_clock::now();
 	brls::Application::pushActivity(new brls::Activity(this->rootFrame));
 
 	brls::Logger::info("Load[11]: enter main loop");

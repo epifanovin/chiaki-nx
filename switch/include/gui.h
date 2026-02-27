@@ -23,29 +23,38 @@ class List : public ScrollingFrame
 {
 	private:
 		Box *content_box = nullptr;
+		const float row_spacing = 10.0f;
 
 	public:
 		List()
 			: ScrollingFrame()
 		{
 			Style style = getStyle();
+			const float horizontal_inset = 8.0f;
 			setGrow(1.0f);
 			setScrollingBehavior(ScrollingBehavior::NATURAL);
 
 			content_box = new Box(Axis::COLUMN);
 			content_box->setGrow(1.0f);
+			// Keep list rows clear of each other and away from the applet footer area.
+			float padding_top = style["brls/tab_details/padding_top"] + 16.0f;
+			float padding_bottom = style["brls/tab_details/padding_bottom"] + style["brls/applet_frame/footer_height"] + 20.0f;
 			content_box->setPadding(
-				style["brls/tab_details/padding_top"],
-				style["brls/tab_details/padding_right"],
-				style["brls/tab_details/padding_bottom"],
-				style["brls/tab_details/padding_left"]);
+				padding_top,
+				style["brls/tab_details/padding_right"] + horizontal_inset,
+				padding_bottom,
+				style["brls/tab_details/padding_left"] + horizontal_inset);
 			setContentView(content_box);
 		}
 
 		void addView(View *view) override
 		{
 			if(content_box)
+			{
+				// Add clear separation between rows to avoid visual crowding/overlap.
+				view->setMarginBottom(row_spacing);
 				content_box->addView(view);
+			}
 		}
 
 		void removeView(View *view, bool free = true) override
