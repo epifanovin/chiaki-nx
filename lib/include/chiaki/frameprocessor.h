@@ -36,9 +36,11 @@ typedef struct chiaki_frame_processor_t
 	size_t buf_stride_per_unit;
 	unsigned int units_source_expected;
 	unsigned int units_fec_expected;
-	unsigned int units_source_received;
-	unsigned int units_fec_received;
-	ChiakiFrameUnit *unit_slots;
+		unsigned int units_source_received;
+		unsigned int units_fec_received;
+		unsigned int *erasures_buf;
+		size_t erasures_buf_count;
+		ChiakiFrameUnit *unit_slots;
 	size_t unit_slots_size;
 	bool flushed; // whether we have already flushed the current frame, i.e. are only interested in stats, not data.
 	ChiakiStreamStats stream_stats;

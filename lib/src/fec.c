@@ -9,16 +9,68 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int *create_matrix(unsigned int k, unsigned int m)
+typedef struct chiaki_fec_matrix_cache_entry_t
 {
-	return cauchy_original_coding_matrix(k, m, CHIAKI_FEC_WORDSIZE);
+	unsigned int k;
+	unsigned int m;
+	uint64_t age;
+	int *matrix;
+} ChiakiFecMatrixCacheEntry;
+
+#define CHIAKI_FEC_MATRIX_CACHE_SIZE 8
+
+static ChiakiFecMatrixCacheEntry g_fec_matrix_cache[CHIAKI_FEC_MATRIX_CACHE_SIZE];
+static uint64_t g_fec_matrix_cache_age = 1;
+
+static int *get_cached_matrix(unsigned int k, unsigned int m)
+{
+	for(size_t i = 0; i < CHIAKI_FEC_MATRIX_CACHE_SIZE; i++)
+	{
+		ChiakiFecMatrixCacheEntry *entry = &g_fec_matrix_cache[i];
+		if(entry->matrix && entry->k == k && entry->m == m)
+		{
+			entry->age = g_fec_matrix_cache_age++;
+			return entry->matrix;
+		}
+	}
+
+	int *matrix = cauchy_original_coding_matrix(k, m, CHIAKI_FEC_WORDSIZE);
+	if(!matrix)
+		return NULL;
+
+	size_t replace_index = 0;
+	uint64_t oldest_age = UINT64_MAX;
+	for(size_t i = 0; i < CHIAKI_FEC_MATRIX_CACHE_SIZE; i++)
+	{
+		ChiakiFecMatrixCacheEntry *entry = &g_fec_matrix_cache[i];
+		if(!entry->matrix)
+		{
+			replace_index = i;
+			oldest_age = 0;
+			break;
+		}
+		if(entry->age < oldest_age)
+		{
+			replace_index = i;
+			oldest_age = entry->age;
+		}
+	}
+
+	ChiakiFecMatrixCacheEntry *replace = &g_fec_matrix_cache[replace_index];
+	if(replace->matrix)
+		free(replace->matrix);
+	replace->matrix = matrix;
+	replace->k = k;
+	replace->m = m;
+	replace->age = g_fec_matrix_cache_age++;
+	return matrix;
 }
 
 CHIAKI_EXPORT ChiakiErrorCode chiaki_fec_decode(uint8_t *frame_buf, size_t unit_size, size_t stride, unsigned int k, unsigned int m, const unsigned int *erasures, size_t erasures_count)
 {
 	if(stride < unit_size)
 		return CHIAKI_ERR_INVALID_DATA;
-	int *matrix = create_matrix(k, m);
+	int *matrix = get_cached_matrix(k, m);
 	if(!matrix)
 		return CHIAKI_ERR_MEMORY;
 
@@ -70,7 +122,6 @@ error_data_ptrs:
 error_jerasures:
 	free(jerasures);
 error_matrix:
-	free(matrix);
 	return err;
 }
 
@@ -78,7 +129,7 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_fec_encode(uint8_t *frame_buf, size_t unit_
 {
 	if(stride < unit_size)
 		return CHIAKI_ERR_INVALID_DATA;
-	int *matrix = create_matrix(k, m);
+	int *matrix = get_cached_matrix(k, m);
 	if(!matrix)
 		return CHIAKI_ERR_MEMORY;
 
@@ -128,6 +179,5 @@ error_coding_ptrs:
 error_data_ptrs:
 	free(data_ptrs);
 error_matrix:
-	free(matrix);
 	return err;
 }

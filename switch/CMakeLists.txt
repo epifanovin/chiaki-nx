@@ -1,82 +1,42 @@
+set(CHIAKI_SWITCH_RENDERER "DEKO3D" CACHE STRING "Switch video renderer backend (DEKO3D or OPENGL)")
+set_property(CACHE CHIAKI_SWITCH_RENDERER PROPERTY STRINGS DEKO3D OPENGL)
+string(TOUPPER "${CHIAKI_SWITCH_RENDERER}" CHIAKI_SWITCH_RENDERER)
+if(NOT CHIAKI_SWITCH_RENDERER STREQUAL "DEKO3D" AND NOT CHIAKI_SWITCH_RENDERER STREQUAL "OPENGL")
+	message(FATAL_ERROR "CHIAKI_SWITCH_RENDERER must be DEKO3D or OPENGL")
+endif()
+
+set(_chiaki_switch_deko_default OFF)
+if(CHIAKI_SWITCH_RENDERER STREQUAL "DEKO3D")
+	set(_chiaki_switch_deko_default ON)
+endif()
+option(CHIAKI_SWITCH_DEKO3D "Enable Deko3D renderer backend for Switch" ${_chiaki_switch_deko_default})
+if(CHIAKI_SWITCH_DEKO3D)
+	set(CHIAKI_SWITCH_RENDERER "DEKO3D")
+else()
+	set(CHIAKI_SWITCH_RENDERER "OPENGL")
+endif()
 
 ##################
 # borealis dependency
 ##################
 
-# do not include
-# borealis/library/lib/switch_wrapper.c
-# switch functions are in switch/src/main.cpp
-set(BOREALIS_SOURCE
-    borealis/library/lib/extern/libretro-common/features/features_cpu.c
-    borealis/library/lib/extern/libretro-common/encodings/encoding_utf.c
-    borealis/library/lib/extern/libretro-common/compat/compat_strl.c
-    borealis/library/lib/extern/nxfmtwrapper/format.cpp
-    borealis/library/lib/extern/nanovg/nanovg.c
-    borealis/library/lib/extern/glad/glad.c
-    borealis/library/lib/scroll_view.cpp
-    borealis/library/lib/style.cpp
-    borealis/library/lib/table.cpp
-    borealis/library/lib/task_manager.cpp
-    borealis/library/lib/progress_display.cpp
-    borealis/library/lib/staged_applet_frame.cpp
-    borealis/library/lib/applet_frame.cpp
-    borealis/library/lib/hint.cpp
-    borealis/library/lib/image.cpp
-    borealis/library/lib/logger.cpp
-    borealis/library/lib/swkbd.cpp
-    borealis/library/lib/crash_frame.cpp
-    borealis/library/lib/header.cpp
-    borealis/library/lib/progress_spinner.cpp
-    borealis/library/lib/layer_view.cpp
-    borealis/library/lib/notification_manager.cpp
-    borealis/library/lib/rectangle.cpp
-    borealis/library/lib/application.cpp
-    borealis/library/lib/box_layout.cpp
-    borealis/library/lib/sidebar.cpp
-    borealis/library/lib/dropdown.cpp
-    borealis/library/lib/popup_frame.cpp
-    borealis/library/lib/repeating_task.cpp
-    borealis/library/lib/absolute_layout.cpp
-    borealis/library/lib/i18n.cpp
-    borealis/library/lib/tab_frame.cpp
-    borealis/library/lib/thumbnail_frame.cpp
-    borealis/library/lib/animations.cpp
-    borealis/library/lib/dialog.cpp
-    borealis/library/lib/view.cpp
-    borealis/library/lib/list.cpp
-    borealis/library/lib/button.cpp
-    borealis/library/lib/label.cpp
-    borealis/library/lib/theme.cpp
-    borealis/library/lib/material_icon.cpp)
-
-add_library(borealis STATIC ${BOREALIS_SOURCE})
-set_property(TARGET borealis PROPERTY CXX_STANDARD 17)
-target_include_directories(borealis PUBLIC
-	borealis/library/include
-    borealis/library/include/borealis/extern
-	borealis/library/include/borealis/extern/glad
-	borealis/library/include/borealis/extern/nanovg
-	borealis/library/include/borealis/extern/libretro-common
-	borealis/library/lib/extern/fmt/include)
-
-find_package(glfw3 REQUIRED)
-find_library(EGL EGL)
-find_library(GLAPI glapi)
-find_library(DRM_NOUVEAU drm_nouveau)
-target_link_libraries(borealis
-	glfw
-	${EGL}
-	${GLAPI}
-	${DRM_NOUVEAU})
-
 if(CHIAKI_IS_SWITCH)
-	target_compile_definitions(borealis PUBLIC
-		BOREALIS_RESOURCES="romfs:/")
+	set(PLATFORM_SWITCH ON CACHE BOOL "" FORCE)
+	set(PLATFORM_DESKTOP OFF CACHE BOOL "" FORCE)
+	set(USE_DEKO3D ${CHIAKI_SWITCH_DEKO3D} CACHE BOOL "" FORCE)
+	set(BOREALIS_USE_DEKO3D ${CHIAKI_SWITCH_DEKO3D} CACHE BOOL "" FORCE)
+	set(USE_GLFW ON CACHE BOOL "" FORCE)
+	set(USE_SDL2 OFF CACHE BOOL "" FORCE)
 else()
-	target_compile_definitions(borealis PUBLIC
-		BOREALIS_RESOURCES="./switch/res/")
+	set(PLATFORM_SWITCH OFF CACHE BOOL "" FORCE)
+	set(PLATFORM_DESKTOP ON CACHE BOOL "" FORCE)
+	set(USE_DEKO3D OFF CACHE BOOL "" FORCE)
+	set(BOREALIS_USE_DEKO3D OFF CACHE BOOL "" FORCE)
+	set(USE_GLFW ON CACHE BOOL "" FORCE)
 endif()
+set(USE_LIBROMFS OFF CACHE BOOL "" FORCE)
 
+add_subdirectory(borealis/library)
 
 ##################
 # chiaki with borealis
@@ -87,13 +47,13 @@ find_library(SDL2 SDL2)
 find_library(SWRESAMPLE swresample)
 find_library(DAV1D dav1d)
 
-# find -type f | grep -P '\.(h|cpp)$' | sed 's#\./#\t\t#g'
 add_executable(chiaki-borealis WIN32
 	src/views/enter_pin_view.cpp
 	src/views/ps_remote_play.cpp
 	src/discoverymanager.cpp
 	src/settings.cpp
 	src/io.cpp
+	src/deko_video_renderer.cpp
 	src/host.cpp
 	src/main.cpp
 	src/gui.cpp)
@@ -102,7 +62,14 @@ set_target_properties(chiaki-borealis PROPERTIES
 	CXX_STANDARD 17
 	OUTPUT_NAME chiaki)
 
-target_include_directories(chiaki-borealis PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(chiaki-borealis PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${CMAKE_CURRENT_SOURCE_DIR}/borealis/library/include/borealis/extern/glad)
+if(CHIAKI_SWITCH_DEKO3D)
+	target_compile_definitions(chiaki-borealis PRIVATE CHIAKI_SWITCH_RENDERER_DEKO3D=1)
+else()
+	target_compile_definitions(chiaki-borealis PRIVATE CHIAKI_SWITCH_RENDERER_OPENGL=1)
+endif()
 
 target_link_libraries(chiaki-borealis
 	chiaki-lib
@@ -112,8 +79,7 @@ target_link_libraries(chiaki-borealis
 	FFMPEG::avcodec
 	FFMPEG::avutil
 	FFMPEG::swscale
-	${SWRESAMPLE}
-	${SWSCALE})
+	${SWRESAMPLE})
 
 if(CHIAKI_IS_SWITCH)
 	# libnx is forced by the switch toolchain
@@ -128,11 +94,38 @@ install(TARGETS chiaki-borealis
 	BUNDLE DESTINATION bin)
 
 if(CHIAKI_IS_SWITCH)
+	set(CHIAKI_SWITCH_ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/switch_romfs")
+	set(CHIAKI_SWITCH_SHADER_DIR "${CHIAKI_SWITCH_ROMFS_DIR}/shaders")
+
+	if(CHIAKI_SWITCH_DEKO3D)
+		if(NOT NX_UAM_EXE)
+			find_program(NX_UAM_EXE uam HINTS "${DEVKITPRO}/tools/bin")
+		endif()
+		if(NOT NX_UAM_EXE)
+			message(FATAL_ERROR "NX_UAM_EXE/uam is required to compile deko shaders")
+		endif()
+		add_custom_target(chiaki_switch_romfs_assets ALL
+			COMMAND ${CMAKE_COMMAND} -E rm -rf "${CHIAKI_SWITCH_ROMFS_DIR}"
+			COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/res" "${CHIAKI_SWITCH_ROMFS_DIR}"
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${CHIAKI_SWITCH_SHADER_DIR}"
+			COMMAND ${NX_UAM_EXE} -s vert -o "${CHIAKI_SWITCH_SHADER_DIR}/basic_vsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/basic_vsh.glsl"
+			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/texture_fsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/texture_fsh.glsl"
+			VERBATIM)
+	else()
+		add_custom_target(chiaki_switch_romfs_assets ALL
+			COMMAND ${CMAKE_COMMAND} -E rm -rf "${CHIAKI_SWITCH_ROMFS_DIR}"
+			COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/res" "${CHIAKI_SWITCH_ROMFS_DIR}"
+			VERBATIM)
+	endif()
+
+	add_dependencies(chiaki-borealis chiaki_switch_romfs_assets)
+
 	add_nro_target(chiaki
 		chiaki-borealis
 		"Chiaki-ng"
 		"StreetPea, kkWong, xlanor, H0neyBadger and thestr4ng3r"
 		"${CHIAKI_VERSION}"
 		"${CMAKE_CURRENT_SOURCE_DIR}/nro_icon.jpg"
-		"${CMAKE_CURRENT_SOURCE_DIR}/res")
+		"${CHIAKI_SWITCH_ROMFS_DIR}")
+	add_dependencies(chiaki_nro chiaki_switch_romfs_assets)
 endif()

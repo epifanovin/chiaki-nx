@@ -155,6 +155,8 @@ int Host::InitSession(IO *user)
 	chiaki_connect_info.host = this->host_addr.c_str();
 	chiaki_connect_info.video_profile = this->video_profile;
 	chiaki_connect_info.video_profile_auto_downgrade = true;
+	chiaki_connect_info.packet_loss_max = this->packet_loss_max;
+	chiaki_connect_info.enable_idr_on_fec_failure = this->enable_idr_on_fec_failure;
 	if (this->IsPS5()) {
 		chiaki_connect_info.video_profile.codec = CHIAKI_CODEC_H265;
 	}
@@ -168,6 +170,7 @@ int Host::InitSession(IO *user)
 	}
 
 	chiaki_connect_info.ps5 = this->IsPS5();
+	user->SetDecodeQueueSize(this->decode_queue_size);
 
 	if(!user->InitAVCodec(this->IsPS5()))
 	{

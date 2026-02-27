@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-AGPL-3.0-only-OpenSSL
 #include <fstream>
+#include <cstdlib>
 
 #include <chiaki/base64.h>
 #include "settings.h"
@@ -75,11 +76,14 @@ Host *Settings::GetOrCreateHost(std::string *host_name)
 		// copy default settings
 		// to the newly created host
 		this->SetPSNOnlineID(host, this->global_psn_online_id);
-		this->SetPSNAccountID(host, this->global_psn_account_id);
-		this->SetVideoResolution(host, this->global_video_resolution);
-		this->SetVideoFPS(host, this->global_video_fps);
-		this->SetHaptic(host, this->global_haptic);
-	}
+			this->SetPSNAccountID(host, this->global_psn_account_id);
+			this->SetVideoResolution(host, this->global_video_resolution);
+			this->SetVideoFPS(host, this->global_video_fps);
+			this->SetPacketLossMax(host, this->global_packet_loss_max);
+			this->SetEnableIDROnFECFailure(host, this->global_enable_idr_on_fec_failure);
+			this->SetDecodeQueueSize(host, this->global_decode_queue_size);
+			this->SetHaptic(host, this->global_haptic);
+		}
 	return host;
 }
 
@@ -152,12 +156,21 @@ void Settings::ParseFile()
 				case VIDEO_RESOLUTION:
 					this->SetVideoResolution(current_host, value);
 					break;
-				case VIDEO_FPS:
-					this->SetVideoFPS(current_host, value);
-					break;
-				case HAPTIC:
-					this->SetHaptic(current_host, value);
-					break;
+					case VIDEO_FPS:
+						this->SetVideoFPS(current_host, value);
+						break;
+					case PACKET_LOSS_MAX:
+						this->SetPacketLossMax(current_host, value);
+						break;
+					case ENABLE_IDR_ON_FEC_FAILURE:
+						this->SetEnableIDROnFECFailure(current_host, value);
+						break;
+					case DECODE_QUEUE_SIZE:
+						this->SetDecodeQueueSize(current_host, value);
+						break;
+					case HAPTIC:
+						this->SetHaptic(current_host, value);
+						break;
 				case TARGET:
 					CHIAKI_LOGV(&this->log, "TARGET %s", value.c_str());
 					if(current_host != nullptr)
@@ -193,13 +206,16 @@ int Settings::WriteFile()
 						<< this->ResolutionPresetToString(this->GetVideoResolution(nullptr))
 						<< "\"\n";
 
-		if(this->global_video_fps)
-			config_file << "video_fps = "
-						<< this->FPSPresetToString(this->GetVideoFPS(nullptr))
-						<< "\n";
+			if(this->global_video_fps)
+				config_file << "video_fps = "
+							<< this->FPSPresetToString(this->GetVideoFPS(nullptr))
+							<< "\n";
+			config_file << "packet_loss_max = " << this->GetPacketLossMax(nullptr) << "\n";
+			config_file << "enable_idr_on_fec_failure = " << (this->GetEnableIDROnFECFailure(nullptr) ? 1 : 0) << "\n";
+			config_file << "decode_queue_size = " << this->GetDecodeQueueSize(nullptr) << "\n";
 
-		if(this->global_haptic)
-			config_file << "haptic = "
+			if(this->global_haptic)
+				config_file << "haptic = "
 						<< std::to_string(this->GetHaptic(nullptr))
 						<< "\n";
 		if(this->global_psn_online_id.length())
@@ -225,13 +241,16 @@ int Settings::WriteFile()
 							<< this->ResolutionPresetToString(this->GetVideoResolution(&it->second))
 							<< "\"\n";
 
-			if(it->second.video_fps)
-				config_file << "video_fps = "
-							<< this->FPSPresetToString(this->GetVideoFPS(&it->second))
-							<< "\n";
+				if(it->second.video_fps)
+					config_file << "video_fps = "
+								<< this->FPSPresetToString(this->GetVideoFPS(&it->second))
+								<< "\n";
+				config_file << "packet_loss_max = " << this->GetPacketLossMax(&it->second) << "\n";
+				config_file << "enable_idr_on_fec_failure = " << (this->GetEnableIDROnFECFailure(&it->second) ? 1 : 0) << "\n";
+				config_file << "decode_queue_size = " << this->GetDecodeQueueSize(&it->second) << "\n";
 
-			if(it->second.psn_online_id.length())
-				config_file << "psn_online_id = \"" << it->second.psn_online_id << "\"\n";
+				if(it->second.psn_online_id.length())
+					config_file << "psn_online_id = \"" << it->second.psn_online_id << "\"\n";
 
 			if(it->second.psn_account_id.length())
 				config_file << "psn_account_id = \"" << it->second.psn_account_id << "\"\n";
@@ -442,6 +461,80 @@ void Settings::SetVideoFPS(Host *host, ChiakiVideoFPSPreset value)
 	else
 		host->video_fps = value;
 }
+
+double Settings::GetPacketLossMax(Host *host)
+{
+	if(host == nullptr)
+		return this->global_packet_loss_max;
+	return host->packet_loss_max;
+}
+
+void Settings::SetPacketLossMax(Host *host, double value)
+{
+	if(value < 0.0)
+		value = 0.0;
+	if(value > 0.25)
+		value = 0.25;
+	if(host == nullptr)
+		this->global_packet_loss_max = value;
+	else
+		host->packet_loss_max = value;
+}
+
+void Settings::SetPacketLossMax(Host *host, std::string value)
+{
+	char *end = nullptr;
+	double parsed = strtod(value.c_str(), &end);
+	if(end == value.c_str())
+		parsed = 0.03;
+	this->SetPacketLossMax(host, parsed);
+}
+
+bool Settings::GetEnableIDROnFECFailure(Host *host)
+{
+	if(host == nullptr)
+		return this->global_enable_idr_on_fec_failure;
+	return host->enable_idr_on_fec_failure;
+}
+
+void Settings::SetEnableIDROnFECFailure(Host *host, bool value)
+{
+	if(host == nullptr)
+		this->global_enable_idr_on_fec_failure = value;
+	else
+		host->enable_idr_on_fec_failure = value;
+}
+
+void Settings::SetEnableIDROnFECFailure(Host *host, std::string value)
+{
+	bool enabled = value == "1" || value == "true" || value == "TRUE";
+	this->SetEnableIDROnFECFailure(host, enabled);
+}
+
+int Settings::GetDecodeQueueSize(Host *host)
+{
+	if(host == nullptr)
+		return this->global_decode_queue_size;
+	return host->decode_queue_size;
+}
+
+void Settings::SetDecodeQueueSize(Host *host, int value)
+{
+	if(value < 3)
+		value = 3;
+	if(value > 8)
+		value = 8;
+	if(host == nullptr)
+		this->global_decode_queue_size = value;
+	else
+		host->decode_queue_size = value;
+}
+
+void Settings::SetDecodeQueueSize(Host *host, std::string value)
+{
+	this->SetDecodeQueueSize(host, atoi(value.c_str()));
+}
+
 HapticPreset Settings::GetHaptic(Host *host)
 {
 	if(host == nullptr) return this->global_haptic;

@@ -79,9 +79,6 @@ void main()
 }
 )glsl";
 
-int current_frame = 0;
-int next_frame = 0;
-
 bool haptic_lock = false;
 int haptic_val = 0;
 std::chrono::system_clock::time_point haptic_lock_time;
@@ -108,6 +105,13 @@ IO::IO()
 {
 	Settings *settings = Settings::GetInstance();
 	this->log = settings->GetLogger();
+#if defined(CHIAKI_SWITCH_RENDERER_DEKO3D) && defined(BOREALIS_USE_DEKO3D)
+	this->use_deko_renderer = true;
+#else
+	this->use_deko_renderer = false;
+#endif
+	if(!enableHWAccl)
+		this->use_deko_renderer = false;
 }
 
 IO::~IO()
@@ -118,6 +122,15 @@ IO::~IO()
 		SDL_CloseAudioDevice(this->sdl_audio_device_id);
 	}
 	FreeVideo();
+}
+
+void IO::SetDecodeQueueSize(int value)
+{
+	if(value < 3)
+		value = 3;
+	if(value > MAX_FRAME_COUNT_MAX)
+		value = MAX_FRAME_COUNT_MAX;
+	this->frame_queue_size = value;
 }
 
 void IO::SetMesaConfig()
@@ -207,63 +220,97 @@ void IO::DumpProgramError(GLuint prog, const char *func, const char *file, int l
 
 bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_recovered, void *user)
 {
-	// callback function to decode video buffer
+	(void)frames_lost;
+	(void)frame_recovered;
+	(void)user;
 
-	AVPacket* packet = av_packet_alloc();
-	packet->data = buf;
-	packet->size = buf_size;
+	AVPacket packet = {0};
+	packet.data = buf;
+	packet.size = (int)buf_size;
 
-send_packet:
-	// Push
-	int r = avcodec_send_packet(this->codec_context, packet);
-	if(r != 0)
+	int r = 0;
+	int send_retry = 0;
+	while((r = avcodec_send_packet(this->codec_context, &packet)) == AVERROR(EAGAIN) && send_retry < 2)
+	{
+		// Drain one queued frame to unblock decoder input without spinning.
+		AVFrame *drain_frame = this->tmp_frame ? this->tmp_frame : this->frames[this->next_frame_index];
+		int drain = avcodec_receive_frame(this->codec_context, drain_frame);
+		if(drain == 0)
+			av_frame_unref(drain_frame);
+		send_retry++;
+	}
+
+	if(r < 0)
 	{
 		if(r == AVERROR(EAGAIN))
-		{
-			CHIAKI_LOGE(this->log, "AVCodec internal buffer is full removing frames before pushing");
-			r = avcodec_receive_frame(this->codec_context, this->tmp_frame);
-			// send decoded frame for sdl texture update
-			if(r != 0)
-			{
-				CHIAKI_LOGE(this->log, "Failed to pull frame");
-				av_packet_free(&packet);
-				return false;
-			}
-			goto send_packet;
-		}
-		else
+			return true;
+		char errbuf[128];
+		av_make_error_string(errbuf, sizeof(errbuf), r);
+		CHIAKI_LOGE(this->log, "Failed to push frame: %s", errbuf);
+		return false;
+	}
+
+	AVFrame *target_frame = this->frames[this->next_frame_index];
+	av_frame_unref(target_frame);
+
+	if(enableHWAccl && this->use_deko_renderer)
+	{
+		r = avcodec_receive_frame(this->codec_context, target_frame);
+		if(r == AVERROR(EAGAIN) || r == AVERROR_EOF)
+			return true;
+		if(r < 0)
 		{
 			char errbuf[128];
 			av_make_error_string(errbuf, sizeof(errbuf), r);
-			CHIAKI_LOGE(this->log, "Failed to push frame: %s", errbuf);
-			av_packet_free(&packet);
+			CHIAKI_LOGE(this->log, "Failed to pull hardware frame: %s", errbuf);
+			return false;
+		}
+	}
+	else if(enableHWAccl)
+	{
+		r = avcodec_receive_frame(this->codec_context, this->tmp_frame);
+		if(r == AVERROR(EAGAIN) || r == AVERROR_EOF)
+			return true;
+		if(r < 0)
+		{
+			char errbuf[128];
+			av_make_error_string(errbuf, sizeof(errbuf), r);
+			CHIAKI_LOGE(this->log, "Failed to pull frame: %s", errbuf);
+			return false;
+		}
+		if(av_hwframe_transfer_data(target_frame, this->tmp_frame, 0) < 0)
+		{
+			// Some decoder paths already output software NV12.
+			if(this->tmp_frame->format == AV_PIX_FMT_NV12 || this->tmp_frame->format == AV_PIX_FMT_P010LE)
+			{
+				av_frame_ref(target_frame, this->tmp_frame);
+			}
+			else
+			{
+				CHIAKI_LOGE(this->log, "Failed to transfer hardware frame to system memory");
+				av_frame_unref(this->tmp_frame);
+				return false;
+			}
+		}
+		av_frame_copy_props(target_frame, this->tmp_frame);
+		av_frame_unref(this->tmp_frame);
+	}
+	else
+	{
+		r = avcodec_receive_frame(this->codec_context, target_frame);
+		if(r == AVERROR(EAGAIN) || r == AVERROR_EOF)
+			return true;
+		if(r < 0)
+		{
+			char errbuf[128];
+			av_make_error_string(errbuf, sizeof(errbuf), r);
+			CHIAKI_LOGE(this->log, "Failed to pull frame: %s", errbuf);
 			return false;
 		}
 	}
 
-	// Pull
-	if (enableHWAccl) {
-		r = avcodec_receive_frame(this->codec_context, this->tmp_frame);
-		if (r == 0) {
-			if (av_hwframe_transfer_data(this->frames[next_frame], this->tmp_frame, 0) < 0) {
-				CHIAKI_LOGI(this->log, "transfer error");
-			}
-			if (av_frame_copy_props(this->frames[next_frame], this->tmp_frame) < 0) {
-				CHIAKI_LOGI(this->log, "copy error");
-			}
-		}
-	} else {
-		r = avcodec_receive_frame(this->codec_context, this->frames[next_frame]);
-	}
-
-	if(r != 0) {
-		CHIAKI_LOGE(this->log, "Failed to pull frame");
-	} else {
-		current_frame = next_frame;
-		next_frame = (next_frame + 1) % MAX_FRAME_COUNT;
-	}
-
-	av_packet_free(&packet);
+	this->current_frame_index.store(this->next_frame_index, std::memory_order_release);
+	this->next_frame_index = (this->next_frame_index + 1) % this->frame_queue_size;
 	return true;
 }
 
@@ -352,36 +399,51 @@ bool IO::InitVideo(int video_width, int video_height, int screen_width, int scre
 
 	this->screen_width = screen_width;
 	this->screen_height = screen_height;
-	this->frames = (AVFrame**)malloc(MAX_FRAME_COUNT * sizeof(AVFrame*));
+	this->frames = (AVFrame **)malloc(this->frame_queue_size * sizeof(AVFrame *));
+	if(!this->frames)
+		return false;
 
-	for (int i = 0; i < MAX_FRAME_COUNT; i++) {
-			frames[i] = av_frame_alloc();
-			if (frames[i] == NULL) {
-					CHIAKI_LOGE(this->log, "FFmpeg: Couldn't allocate frame");
-					return -1;
-			}
-			frames[i]->format = AV_PIX_FMT_NV12;
-			frames[i]->width  = video_width;
-			frames[i]->height = video_height;
+	this->frames_have_sw_buffers = !this->use_deko_renderer;
+	this->current_frame_index.store(0, std::memory_order_release);
+	this->next_frame_index = 0;
 
-			int err = av_frame_get_buffer(frames[i], 256);
-			if (err < 0) {
-					CHIAKI_LOGE(this->log, "FFmpeg: Couldn't allocate frame buffer:");
-					return -1;
+	for(int i = 0; i < this->frame_queue_size; i++)
+	{
+		this->frames[i] = av_frame_alloc();
+		if(this->frames[i] == NULL)
+		{
+			CHIAKI_LOGE(this->log, "FFmpeg: Couldn't allocate frame");
+			return false;
+		}
+		this->frames[i]->format = this->use_deko_renderer ? AV_PIX_FMT_NVTEGRA : AV_PIX_FMT_NV12;
+		this->frames[i]->width = video_width;
+		this->frames[i]->height = video_height;
+
+		if(this->frames_have_sw_buffers)
+		{
+			int err = av_frame_get_buffer(this->frames[i], 256);
+			if(err < 0)
+			{
+				CHIAKI_LOGE(this->log, "FFmpeg: Couldn't allocate frame buffer");
+				return false;
 			}
-			for (int j = 0; j < MAX_NV12_PLANE_COUNT; j++) {
-				uintptr_t ptr = (uintptr_t)frames[i]->data[j];
-				// store origin address for releasing
-				origin_ptr[i][j] = ptr;
+			for(int j = 0; j < MAX_NV12_PLANE_COUNT; j++)
+			{
+				uintptr_t ptr = (uintptr_t)this->frames[i]->data[j];
+				this->origin_ptr[i][j] = ptr;
 				uintptr_t dst = (((ptr)+(256)-1)&~((256)-1));
 				uintptr_t gap = dst - ptr;
-				frames[i]->data[j] += gap;
+				this->frames[i]->data[j] += gap;
 			}
-			CHIAKI_LOGE(this->log, "FFmpeg: allocated address: %d %d, linesize 0: %d", (uintptr_t)frames[i]->data[0], (uintptr_t)frames[i]->data[1], frames[i]->linesize[0]);
+		}
 	}
-  this->tmp_frame = av_frame_alloc();
+	this->tmp_frame = av_frame_alloc();
 
-	if(!InitOpenGl())
+	if(this->use_deko_renderer)
+	{
+		this->deko_video_renderer.reset(new DekoVideoRenderer());
+	}
+	else if(!InitOpenGl())
 	{
 		throw Exception("Failed to initiate OpenGl");
 	}
@@ -396,17 +458,27 @@ bool IO::FreeVideo()
 			av_buffer_unref(&this->hw_device_ctx);
 	}
 
-	if (this->frames != NULL) {
-		for (int i = 0; i < MAX_FRAME_COUNT; i++) {
+	if(this->deko_video_renderer)
+	{
+		this->deko_video_renderer->Reset();
+		this->deko_video_renderer.reset();
+	}
+
+	if(this->frames != NULL) {
+		for(int i = 0; i < this->frame_queue_size; i++) {
 			if(this->frames[i]) {
-				for (int j = 0; j < MAX_NV12_PLANE_COUNT; j++) {
-					// resume origin pointer address
-					this->frames[i]->data[j] = (uint8_t*) origin_ptr[i][j];
+				if(this->frames_have_sw_buffers)
+				{
+					for(int j = 0; j < MAX_NV12_PLANE_COUNT; j++)
+					{
+						this->frames[i]->data[j] = (uint8_t *)this->origin_ptr[i][j];
+					}
 				}
 				av_frame_free(&this->frames[i]);
 			}
 		}
-		free(this->frames); // allocted via malloc
+		free(this->frames);
+		this->frames = nullptr;
 	}
 
 	if(this->tmp_frame)
@@ -872,17 +944,17 @@ bool IO::InitAVCodec(bool is_PS5)
 		this->codec_context->thread_count = 4;
 	}
 
+	if (enableHWAccl) {
+		if(av_hwdevice_ctx_create(&this->hw_device_ctx, AV_HWDEVICE_TYPE_NVTEGRA, NULL, NULL, 0) < 0)
+			throw Exception("Failed to enable hardware encoding");
+		this->codec_context->hw_device_ctx = av_buffer_ref(this->hw_device_ctx);
+		this->codec_context->pix_fmt = this->use_deko_renderer ? AV_PIX_FMT_NVTEGRA : AV_PIX_FMT_NV12;
+	}
+
 	if(avcodec_open2(this->codec_context, this->codec, nullptr) < 0)
 	{
 		avcodec_free_context(&this->codec_context);
 		throw Exception("Failed to open codec context");
-	}
-
-	if (enableHWAccl) {
-		if(av_hwdevice_ctx_create(&this->hw_device_ctx, AV_HWDEVICE_TYPE_NVTEGRA, NULL, NULL, 0) < 0) {
-			throw Exception("Failed to enable hardware encoding");
-		}
-		this->codec_context->hw_device_ctx = av_buffer_ref(this->hw_device_ctx);
 	}
 	return true;
 }
@@ -1106,7 +1178,6 @@ inline void IO::SetOpenGlYUVPixels(AVFrame *frame)
 		D(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr));
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	}
-	glFinish();
 }
 inline void IO::SetOpenGlNV12Pixels(AVFrame *frame)
 {
@@ -1136,18 +1207,21 @@ inline void IO::SetOpenGlNV12Pixels(AVFrame *frame)
 	}
 
 	isFirst = false;
-	glFinish();
 }
 
 inline void IO::OpenGlDraw()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
+	int frame_index = this->current_frame_index.load(std::memory_order_acquire);
+	AVFrame *frame = this->frames ? this->frames[frame_index] : nullptr;
+	if(!frame)
+		return;
 
 	if (enableHWAccl) {
-		SetOpenGlNV12Pixels(this->frames[current_frame]);
+		SetOpenGlNV12Pixels(frame);
 	} else {
 		// send to OpenGl
-		SetOpenGlYUVPixels(this->frames[current_frame]);
+		SetOpenGlYUVPixels(frame);
 	}
 
 	//avcodec_flush_buffers(this->codec_context);
@@ -1161,7 +1235,6 @@ inline void IO::OpenGlDraw()
 
 	D(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 	D(glBindVertexArray(0));
-	D(glFinish());
 }
 
 bool IO::InitController()
@@ -1254,6 +1327,15 @@ void IO::UpdateControllerState(ChiakiControllerState *state, std::map<uint32_t, 
 
 bool IO::MainLoop()
 {
+	if(this->use_deko_renderer && this->deko_video_renderer)
+	{
+		int frame_index = this->current_frame_index.load(std::memory_order_acquire);
+		AVFrame *frame = this->frames ? this->frames[frame_index] : nullptr;
+		if(frame)
+			this->deko_video_renderer->Draw(frame, this->screen_width, this->screen_height);
+		return !this->quit;
+	}
+
 	D(glUseProgram(this->prog));
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);

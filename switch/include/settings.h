@@ -30,11 +30,14 @@ class Settings
 		std::map<std::string, Host> hosts;
 
 		// global_settings from psedo INI file
-		ChiakiVideoResolutionPreset global_video_resolution = CHIAKI_VIDEO_RESOLUTION_PRESET_720p;
-		ChiakiVideoFPSPreset global_video_fps = CHIAKI_VIDEO_FPS_PRESET_60;
-		std::string global_psn_online_id = "";
-		std::string global_psn_account_id = "";
-		HapticPreset global_haptic = HAPTIC_PRESET_DIABLED;
+			ChiakiVideoResolutionPreset global_video_resolution = CHIAKI_VIDEO_RESOLUTION_PRESET_720p;
+			ChiakiVideoFPSPreset global_video_fps = CHIAKI_VIDEO_FPS_PRESET_60;
+			double global_packet_loss_max = 0.03;
+			bool global_enable_idr_on_fec_failure = true;
+			int global_decode_queue_size = 8;
+			std::string global_psn_online_id = "";
+			std::string global_psn_account_id = "";
+			HapticPreset global_haptic = HAPTIC_PRESET_DIABLED;
 
 		typedef enum configurationitem
 		{
@@ -46,11 +49,14 @@ class Settings
 			RP_KEY,
 			RP_KEY_TYPE,
 			RP_REGIST_KEY,
-			VIDEO_RESOLUTION,
-			VIDEO_FPS,
-			TARGET,
-			HAPTIC,
-		} ConfigurationItem;
+				VIDEO_RESOLUTION,
+				VIDEO_FPS,
+				PACKET_LOSS_MAX,
+				ENABLE_IDR_ON_FEC_FAILURE,
+				DECODE_QUEUE_SIZE,
+				TARGET,
+				HAPTIC,
+			} ConfigurationItem;
 
 		// dummy parser implementation
 		// the aim is not to have bulletproof parser
@@ -63,11 +69,14 @@ class Settings
 			{RP_KEY, std::regex("^\\s*rp_key\\s*=\\s*\"?([\\w/=+]+)\"?")},
 			{RP_KEY_TYPE, std::regex("^\\s*rp_key_type\\s*=\\s*\"?(\\d)\"?")},
 			{RP_REGIST_KEY, std::regex("^\\s*rp_regist_key\\s*=\\s*\"?([\\w/=+]+)\"?")},
-			{VIDEO_RESOLUTION, std::regex("^\\s*video_resolution\\s*=\\s*\"?(1080p|720p|540p|360p)\"?")},
-			{VIDEO_FPS, std::regex("^\\s*video_fps\\s*=\\s*\"?(60|30)\"?")},
-			{TARGET, std::regex("^\\s*target\\s*=\\s*\"?(\\d+)\"?")},
-			{HAPTIC, std::regex("^\\s*haptic\\s*=\\s*\"?(\\d+)\"?")},
-		};
+				{VIDEO_RESOLUTION, std::regex("^\\s*video_resolution\\s*=\\s*\"?(1080p|720p|540p|360p)\"?")},
+				{VIDEO_FPS, std::regex("^\\s*video_fps\\s*=\\s*\"?(60|30)\"?")},
+				{PACKET_LOSS_MAX, std::regex("^\\s*packet_loss_max\\s*=\\s*\"?([0-9]+(?:\\.[0-9]+)?)\"?")},
+				{ENABLE_IDR_ON_FEC_FAILURE, std::regex("^\\s*enable_idr_on_fec_failure\\s*=\\s*\"?(1|0|true|false)\"?")},
+				{DECODE_QUEUE_SIZE, std::regex("^\\s*decode_queue_size\\s*=\\s*\"?(\\d+)\"?")},
+				{TARGET, std::regex("^\\s*target\\s*=\\s*\"?(\\d+)\"?")},
+				{HAPTIC, std::regex("^\\s*haptic\\s*=\\s*\"?(\\d+)\"?")},
+			};
 
 		ConfigurationItem ParseLine(std::string * line, std::string * value);
 		size_t GetB64encodeSize(size_t);
@@ -107,9 +116,18 @@ class Settings
 		void SetVideoResolution(Host * host, ChiakiVideoResolutionPreset value);
 		void SetVideoResolution(Host * host, std::string value);
 
-		ChiakiVideoFPSPreset GetVideoFPS(Host * host);
-		void SetVideoFPS(Host * host, ChiakiVideoFPSPreset value);
-		void SetVideoFPS(Host * host, std::string value);
+			ChiakiVideoFPSPreset GetVideoFPS(Host * host);
+			void SetVideoFPS(Host * host, ChiakiVideoFPSPreset value);
+			void SetVideoFPS(Host * host, std::string value);
+			double GetPacketLossMax(Host *host);
+			void SetPacketLossMax(Host *host, double value);
+			void SetPacketLossMax(Host *host, std::string value);
+			bool GetEnableIDROnFECFailure(Host *host);
+			void SetEnableIDROnFECFailure(Host *host, bool value);
+			void SetEnableIDROnFECFailure(Host *host, std::string value);
+			int GetDecodeQueueSize(Host *host);
+			void SetDecodeQueueSize(Host *host, int value);
+			void SetDecodeQueueSize(Host *host, std::string value);
 
 		HapticPreset GetHaptic(Host * host);
 		void SetHaptic(Host * host, HapticPreset value);

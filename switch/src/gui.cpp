@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-AGPL-3.0-only-OpenSSL
 
 #include "gui.h"
+#include <array>
 #include <chiaki/log.h>
 #include "views/enter_pin_view.h"
 #include "views/ps_remote_play.h"
@@ -483,6 +484,62 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	fps->getValueSelectedEvent()->subscribe(fps_cb);
 	ls->addView(fps);
 
+	const std::array<double, 4> packet_loss_values = {0.01, 0.02, 0.03, 0.05};
+	int packet_loss_value = 2;
+	double current_packet_loss = this->settings->GetPacketLossMax(host);
+	for(size_t i = 0; i < packet_loss_values.size(); i++)
+	{
+		if(current_packet_loss <= packet_loss_values[i] + 0.0001)
+		{
+			packet_loss_value = (int)i;
+			break;
+		}
+	}
+	brls::SelectListItem *packet_loss_max = new brls::SelectListItem(
+		"Packet Loss Max",
+		{"1%", "2%", "3% (default)", "5%"},
+		packet_loss_value);
+	auto packet_loss_max_cb = [this, host, packet_loss_values](int result) {
+		if(result < 0 || result >= (int)packet_loss_values.size())
+			return;
+		this->settings->SetPacketLossMax(host, packet_loss_values[(size_t)result]);
+		this->settings->WriteFile();
+	};
+	packet_loss_max->getValueSelectedEvent()->subscribe(packet_loss_max_cb);
+	ls->addView(packet_loss_max);
+
+	value = this->settings->GetEnableIDROnFECFailure(host) ? 0 : 1;
+	brls::SelectListItem *idr_on_fec_failure = new brls::SelectListItem(
+		"IDR On FEC Failure", {"Enabled", "Disabled"}, value);
+	auto idr_on_fec_failure_cb = [this, host](int result) {
+		this->settings->SetEnableIDROnFECFailure(host, result == 0);
+		this->settings->WriteFile();
+	};
+	idr_on_fec_failure->getValueSelectedEvent()->subscribe(idr_on_fec_failure_cb);
+	ls->addView(idr_on_fec_failure);
+
+	const std::array<int, 4> decode_queue_values = {3, 4, 6, 8};
+	int decode_queue_value = 3;
+	int current_decode_queue = this->settings->GetDecodeQueueSize(host);
+	for(size_t i = 0; i < decode_queue_values.size(); i++)
+	{
+		if(current_decode_queue <= decode_queue_values[i])
+		{
+			decode_queue_value = (int)i;
+			break;
+		}
+	}
+	brls::SelectListItem *decode_queue_size = new brls::SelectListItem(
+		"Decode Queue Size", {"3", "4", "6", "8 (default)"}, decode_queue_value);
+	auto decode_queue_size_cb = [this, host, decode_queue_values](int result) {
+		if(result < 0 || result >= (int)decode_queue_values.size())
+			return;
+		this->settings->SetDecodeQueueSize(host, decode_queue_values[(size_t)result]);
+		this->settings->WriteFile();
+	};
+	decode_queue_size->getValueSelectedEvent()->subscribe(decode_queue_size_cb);
+	ls->addView(decode_queue_size);
+
 	value = this->settings->GetHaptic(host);
 
 	brls::SelectListItem *haptic = new brls::SelectListItem(
@@ -639,4 +696,3 @@ void MainApplication::BuildAddHostConfigurationMenu(brls::List *add_host)
 
 	add_host->addView(register_host);
 }
-

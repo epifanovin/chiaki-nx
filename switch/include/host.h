@@ -41,9 +41,12 @@ class Host
 		ChiakiLog *log = nullptr;
 		Settings *settings = nullptr;
 		//video config
-		ChiakiVideoResolutionPreset video_resolution = CHIAKI_VIDEO_RESOLUTION_PRESET_720p;
-		ChiakiVideoFPSPreset video_fps = CHIAKI_VIDEO_FPS_PRESET_60;
-		int haptic = 0; 
+			ChiakiVideoResolutionPreset video_resolution = CHIAKI_VIDEO_RESOLUTION_PRESET_720p;
+			ChiakiVideoFPSPreset video_fps = CHIAKI_VIDEO_FPS_PRESET_60;
+			double packet_loss_max = 0.03;
+			bool enable_idr_on_fec_failure = true;
+			int decode_queue_size = 8;
+			int haptic = 0;
 		std::string host_type;
 		// user info
 		std::string psn_online_id = "";

@@ -15,7 +15,7 @@
 	url = https://github.com/google/oboe
 [submodule "switch/borealis"]
 	path = switch/borealis
-	url = https://git.sr.ht/~thestr4ng3r/borealis
+	url = https://github.com/XITRIX/borealis.git
 [submodule "third-party/curl"]
 	path = third-party/curl
 	url = https://github.com/curl/curl

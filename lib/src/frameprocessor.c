@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #ifndef _WIN32
 #include <arpa/inet.h>
@@ -52,6 +53,8 @@ CHIAKI_EXPORT void chiaki_frame_processor_init(ChiakiFrameProcessor *frame_proce
 	frame_processor->units_fec_expected = 0;
 	frame_processor->units_source_received = 0;
 	frame_processor->units_fec_received = 0;
+	frame_processor->erasures_buf = NULL;
+	frame_processor->erasures_buf_count = 0;
 	frame_processor->unit_slots = NULL;
 	frame_processor->unit_slots_size = 0;
 	frame_processor->flushed = true;
@@ -61,6 +64,7 @@ CHIAKI_EXPORT void chiaki_frame_processor_init(ChiakiFrameProcessor *frame_proce
 CHIAKI_EXPORT void chiaki_frame_processor_fini(ChiakiFrameProcessor *frame_processor)
 {
 	free(frame_processor->frame_buf);
+	free(frame_processor->erasures_buf);
 	free(frame_processor->unit_slots);
 }
 
@@ -206,9 +210,15 @@ static ChiakiErrorCode chiaki_frame_processor_fec(ChiakiFrameProcessor *frame_pr
 
 	size_t erasures_count = (frame_processor->units_source_expected + frame_processor->units_fec_expected)
 			- (frame_processor->units_source_received + frame_processor->units_fec_received);
-	unsigned int *erasures = calloc(erasures_count, sizeof(unsigned int));
-	if(!erasures)
-		return CHIAKI_ERR_MEMORY;
+	if(erasures_count > frame_processor->erasures_buf_count)
+	{
+		unsigned int *erasures_new = realloc(frame_processor->erasures_buf, erasures_count * sizeof(unsigned int));
+		if(!erasures_new)
+			return CHIAKI_ERR_MEMORY;
+		frame_processor->erasures_buf = erasures_new;
+		frame_processor->erasures_buf_count = erasures_count;
+	}
+	unsigned int *erasures = frame_processor->erasures_buf;
 
 	size_t erasure_index = 0;
 	for(size_t i=0; i<frame_processor->units_source_expected + frame_processor->units_fec_expected; i++)
@@ -216,15 +226,14 @@ static ChiakiErrorCode chiaki_frame_processor_fec(ChiakiFrameProcessor *frame_pr
 		ChiakiFrameUnit *slot = frame_processor->unit_slots + i;
 		if(!slot->data_size)
 		{
-			if(erasure_index >= erasures_count)
-			{
-				// should never happen by design, but too scary not to check
-				assert(false);
-				free(erasures);
-				return CHIAKI_ERR_UNKNOWN;
+				if(erasure_index >= erasures_count)
+				{
+					// should never happen by design, but too scary not to check
+					assert(false);
+					return CHIAKI_ERR_UNKNOWN;
+				}
+				erasures[erasure_index++] = (unsigned int)i;
 			}
-			erasures[erasure_index++] = (unsigned int)i;
-		}
 	}
 	assert(erasure_index == erasures_count);
 
@@ -260,7 +269,6 @@ static ChiakiErrorCode chiaki_frame_processor_fec(ChiakiFrameProcessor *frame_pr
 		}
 	}
 
-	free(erasures);
 	return err;
 }
 

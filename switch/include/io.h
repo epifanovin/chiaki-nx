@@ -4,8 +4,10 @@
 #define CHIAKI_IO_H
 
 #include <SDL2/SDL.h>
+#include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 
 #include <glad.h> // glad library (OpenGL loader)
 
@@ -48,6 +50,7 @@ extern "C"
 #include <chiaki/log.h>
 
 #include "exception.h"
+#include "deko_video_renderer.h"
 
 #define PLANES_COUNT 3
 #define SDL_JOYSTICK_COUNT 2
@@ -62,20 +65,27 @@ class IO
 		int video_width;
 		int video_height;
 		bool quit = false;
-		static const int MAX_FRAME_COUNT = 3;
+		static const int MAX_FRAME_COUNT_MAX = 8;
 		static const int MAX_NV12_PLANE_COUNT = 2;
+		static const int DEFAULT_FRAME_QUEUE_SIZE = 8;
 		GLint m_texture_uniform[MAX_NV12_PLANE_COUNT];
 		// opengl reader writer
 		std::mutex mtx;
 		// default nintendo switch res
-    AVBufferRef *hw_device_ctx = nullptr;
+		AVBufferRef *hw_device_ctx = nullptr;
 		int screen_width = 1280;
 		int screen_height = 720;
 		const AVCodec *codec;
 		AVCodecContext *codec_context;
 		AVFrame **frames;
-		uintptr_t origin_ptr[MAX_FRAME_COUNT][MAX_NV12_PLANE_COUNT];
+		uintptr_t origin_ptr[MAX_FRAME_COUNT_MAX][MAX_NV12_PLANE_COUNT] = {};
+		int frame_queue_size = DEFAULT_FRAME_QUEUE_SIZE;
+		std::atomic<int> current_frame_index{0};
+		int next_frame_index = 0;
+		bool frames_have_sw_buffers = false;
+		bool use_deko_renderer = false;
 		AVFrame *tmp_frame;
+		std::unique_ptr<DekoVideoRenderer> deko_video_renderer;
 		SDL_AudioDeviceID sdl_audio_device_id = 0;
 		SDL_Event sdl_event;
 		SDL_Joystick *sdl_joystick_ptr[SDL_JOYSTICK_COUNT] = {0};
@@ -119,6 +129,7 @@ class IO
 		bool isFirst = true;
 		void SetMesaConfig();
 		bool VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_recovered, void *user);
+		void SetDecodeQueueSize(int value);
 		void InitAudioCB(unsigned int channels, unsigned int rate);
 		void AudioCB(int16_t *buf, size_t samples_count);
 		bool InitVideo(int video_width, int video_height, int screen_width, int screen_height);
