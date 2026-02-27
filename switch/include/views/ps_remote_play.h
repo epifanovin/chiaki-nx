@@ -8,12 +8,14 @@
 class PSRemotePlay : public brls::View
 {
 	private:
-		brls::AppletFrame *frame;
-		// to display stream on screen
 		IO *io;
-		// to send gamepad inputs
 		Host *host;
-		brls::Label *label;
+		bool overlay_touch_armed = true;
+		bool overlay_open = false;
+
+		void OpenOverlay();
+		void StopStreaming();
+		void HandleOverlayTouchTrigger();
 	public:
 		PSRemotePlay(Host *host);
 		~PSRemotePlay();
