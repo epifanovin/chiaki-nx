@@ -598,12 +598,9 @@ void Settings::SetDecodeQueueSize(Host *host, std::string value)
 HapticPreset Settings::GetHaptic(Host *host)
 {
 	if(host == nullptr) return this->global_haptic;
-	if (host->haptic == 0) {
-		return HAPTIC_PRESET_DIABLED;
-	} else if (host->haptic == 1) {
-		return HAPTIC_PRESET_WEAK;
-	}
-	return HAPTIC_PRESET_STRONG;
+	int h = host->haptic;
+	if(h < 0 || h > 4) h = 0;
+	return static_cast<HapticPreset>(h);
 }
 
 void Settings::SetHaptic(Host *host, HapticPreset value)
@@ -615,13 +612,9 @@ void Settings::SetHaptic(Host *host, HapticPreset value)
 }
 void Settings::SetHaptic(Host *host, std::string value)
 {
-	HapticPreset result = HAPTIC_PRESET_DIABLED;
-	if (value == "1") {
-		result = HAPTIC_PRESET_WEAK;
-	} else if (value == "2") {
-		result = HAPTIC_PRESET_STRONG;
-	}
-	SetHaptic(host, result);
+	int v = atoi(value.c_str());
+	if(v < 0 || v > 4) v = 0;
+	SetHaptic(host, static_cast<HapticPreset>(v));
 }
 
 void Settings::SetVideoFPS(Host *host, std::string value)

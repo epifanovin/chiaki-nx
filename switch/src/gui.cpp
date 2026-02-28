@@ -628,23 +628,10 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	value = this->settings->GetHaptic(host);
 
 	brls::SelectListItem *haptic = new brls::SelectListItem(
-		"Haptics", { "Disabled", "Weak", "Strong" }, value);
+		"Rumble Intensity", { "Off", "25%", "50%", "75%", "100%" }, value);
 
 	auto haptic_cb = [this, host](int result) {
-		HapticPreset value = HAPTIC_PRESET_DIABLED;
-		switch(result)
-		{
-			case 0:
-				value = HAPTIC_PRESET_DIABLED;
-				break;
-			case 1:
-				value = HAPTIC_PRESET_WEAK;
-				break;
-			case 2:
-				value = HAPTIC_PRESET_STRONG;
-				break;
-		}
-		this->settings->SetHaptic(host, value);
+		this->settings->SetHaptic(host, static_cast<HapticPreset>(result));
 		this->settings->WriteFile();
 	};
 

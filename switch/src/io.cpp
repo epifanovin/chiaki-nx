@@ -156,6 +156,15 @@ void IO::SetVsyncMode(int value)
 	this->vsync_mode = value ? 1 : 0;
 }
 
+void IO::SetAudioBufferMax(int value)
+{
+	if(value < 4000)
+		value = 4000;
+	if(value > 32000)
+		value = 32000;
+	this->audio_buffer_max = value;
+}
+
 void IO::SetMesaConfig()
 {
 	//TRACE("%s", "Mesaconfig");
@@ -247,6 +256,8 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 	(void)frame_recovered;
 	(void)user;
 
+	auto decode_start = std::chrono::high_resolution_clock::now();
+
 	AVPacket packet = {0};
 	packet.data = buf;
 	packet.size = (int)buf_size;
@@ -332,6 +343,11 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 		}
 	}
 
+	auto decode_end = std::chrono::high_resolution_clock::now();
+	auto decode_us = std::chrono::duration_cast<std::chrono::microseconds>(decode_end - decode_start).count();
+	this->last_decode_time_us.store((uint32_t)decode_us, std::memory_order_relaxed);
+	this->frames_decoded.fetch_add(1, std::memory_order_relaxed);
+
 	this->current_frame_index.store(this->next_frame_index, std::memory_order_release);
 	this->has_decoded_frame.store(true, std::memory_order_release);
 	this->next_frame_index = (this->next_frame_index + 1) % this->frame_queue_size;
@@ -397,11 +413,10 @@ void IO::AudioCB(int16_t *buf, size_t samples_count)
 	}
 
 	int audio_queued_size = SDL_GetQueuedAudioSize(this->sdl_audio_device_id);
-	if(audio_queued_size > 16000)
+	this->audio_queue_bytes.store(audio_queued_size, std::memory_order_relaxed);
+	if(audio_queued_size > this->audio_buffer_max)
 	{
-		// clear audio queue to avoid big audio delay
-		// average values are close to 13000 bytes
-		CHIAKI_LOGW(this->log, "Triggering SDL_ClearQueuedAudio with queue size = %d", audio_queued_size);
+		CHIAKI_LOGW(this->log, "Triggering SDL_ClearQueuedAudio with queue size = %d (max %d)", audio_queued_size, this->audio_buffer_max);
 		SDL_ClearQueuedAudio(this->sdl_audio_device_id);
 	}
 

@@ -83,6 +83,12 @@ class IO
 		int audio_volume = 180;
 		int stick_deadzone = 0;
 		int vsync_mode = 1;
+		int audio_buffer_max = 16000;
+
+		std::atomic<uint64_t> frames_decoded{0};
+		std::atomic<uint64_t> frames_rendered{0};
+		std::atomic<uint32_t> last_decode_time_us{0};
+		std::atomic<int> audio_queue_bytes{0};
 			std::atomic<int> current_frame_index{0};
 			std::atomic<bool> has_decoded_frame{false};
 			int next_frame_index = 0;
@@ -137,6 +143,14 @@ class IO
 		void SetAudioVolume(int value);
 		void SetStickDeadzone(int value);
 		void SetVsyncMode(int value);
+		void SetAudioBufferMax(int value);
+
+		uint64_t GetFramesDecoded() { return frames_decoded.load(std::memory_order_relaxed); }
+		uint64_t GetFramesRendered() { return frames_rendered.load(std::memory_order_relaxed); }
+		uint32_t GetLastDecodeTimeUs() { return last_decode_time_us.load(std::memory_order_relaxed); }
+		int GetAudioQueueBytes() { return audio_queue_bytes.load(std::memory_order_relaxed); }
+		int GetDecodeQueueSize() { return frame_queue_size; }
+		bool HasDecodedFrame() { return has_decoded_frame.load(std::memory_order_relaxed); }
 		void InitAudioCB(unsigned int channels, unsigned int rate);
 		void AudioCB(int16_t *buf, size_t samples_count);
 		bool InitVideo(int video_width, int video_height, int screen_width, int screen_height);

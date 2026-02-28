@@ -167,12 +167,16 @@ int Host::InitSession(IO *user)
 		chiaki_connect_info.video_profile.codec = CHIAKI_CODEC_H264;
 	else if(this->IsPS5())
 		chiaki_connect_info.video_profile.codec = CHIAKI_CODEC_H265;
-	if (this->haptic > 0) {
+	if(this->haptic > 0)
+	{
 		chiaki_connect_info.enable_dualsense = true;
-		if (this->haptic == 1) {
-			user->HapticBase = 580;
-		} else {
-			user->HapticBase = 400;
+		switch(this->haptic)
+		{
+			case 1: user->HapticBase = 700; break;
+			case 2: user->HapticBase = 580; break;
+			case 3: user->HapticBase = 490; break;
+			case 4: user->HapticBase = 400; break;
+			default: user->HapticBase = 400; break;
 		}
 	}
 
