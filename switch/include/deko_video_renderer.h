@@ -28,6 +28,7 @@ public:
 
 	bool Draw(AVFrame *frame, int width, int height);
 	void Reset();
+	void SetSharpen(float value) { sharpen_amount = value; }
 
 private:
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
@@ -42,10 +43,23 @@ private:
 		dk::Image chroma;
 		dk::ImageDescriptor luma_desc;
 		dk::ImageDescriptor chroma_desc;
-		};
+	};
 
-		bool EnsureInitialized(AVFrame *frame, int width, int height);
-		bool UpdateFrameMapping(AVFrame *frame);
+	struct ColorParams
+	{
+		float y_offset;
+		float y_scale;
+		float uv_offset;
+		float r_cr;
+		float g_cb;
+		float g_cr;
+		float b_cb;
+		float sharpen;
+	};
+
+	bool EnsureInitialized(AVFrame *frame, int width, int height);
+	bool UpdateFrameMapping(AVFrame *frame);
+	void UpdateColorParams(AVFrame *frame);
 
 	bool initialized = false;
 	int frame_width = 0;
@@ -56,6 +70,9 @@ private:
 	int chroma_texture_id = 0;
 	int current_mapping_index = -1;
 	uint32_t update_cmdmem_slice = 0;
+	float sharpen_amount = 0.0f;
+	int detected_colorspace = -1;
+	int detected_color_range = -1;
 
 	brls::SwitchVideoContext *video_context = nullptr;
 	dk::Device device;
@@ -69,6 +86,7 @@ private:
 	CMemPool::Handle update_cmdmem;
 	DkCmdList draw_cmdlist = 0;
 	CMemPool::Handle vertex_buffer;
+	CMemPool::Handle color_params_buffer;
 
 	CDescriptorSet<4096U> *image_descriptor_set = nullptr;
 	CShader vertex_shader;
@@ -76,6 +94,8 @@ private:
 	dk::ImageLayout luma_layout;
 	dk::ImageLayout chroma_layout;
 	std::vector<FrameMapping> frame_mappings;
+#else
+	float sharpen_amount = 0.0f;
 #endif
 };
 
