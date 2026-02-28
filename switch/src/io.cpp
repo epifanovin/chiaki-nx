@@ -126,11 +126,34 @@ IO::~IO()
 
 void IO::SetDecodeQueueSize(int value)
 {
-	if(value < 3)
-		value = 3;
+	if(value < 2)
+		value = 2;
 	if(value > MAX_FRAME_COUNT_MAX)
 		value = MAX_FRAME_COUNT_MAX;
 	this->frame_queue_size = value;
+}
+
+void IO::SetAudioVolume(int value)
+{
+	if(value < 0)
+		value = 0;
+	if(value > 200)
+		value = 200;
+	this->audio_volume = value;
+}
+
+void IO::SetStickDeadzone(int value)
+{
+	if(value < 0)
+		value = 0;
+	if(value > 30)
+		value = 30;
+	this->stick_deadzone = value;
+}
+
+void IO::SetVsyncMode(int value)
+{
+	this->vsync_mode = value ? 1 : 0;
 }
 
 void IO::SetMesaConfig()
@@ -353,10 +376,10 @@ void IO::InitAudioCB(unsigned int channels, unsigned int rate)
 
 void IO::AudioCB(int16_t *buf, size_t samples_count)
 {
+	float vol = this->audio_volume / 100.0f;
 	for(int x = 0; x < samples_count * 2; x++)
 	{
-		// boost audio volume
-		int sample = buf[x] * 1.80;
+		int sample = (int)(buf[x] * vol);
 		// Hard clipping (audio compression)
 		// truncate value that overflow/underflow int16
 		if(sample > INT16_MAX)
@@ -747,45 +770,43 @@ bool IO::ReadGameSixAxis(ChiakiControllerState *state)
 #endif
 }
 
+static int16_t applyDeadzone(int16_t value, int deadzone_percent)
+{
+	if(deadzone_percent <= 0)
+		return value;
+	int threshold = (32767 * deadzone_percent) / 100;
+	if(abs(value) < threshold)
+		return 0;
+	float sign = value > 0 ? 1.0f : -1.0f;
+	return (int16_t)(sign * ((abs(value) - threshold) * 32767.0f / (32767 - threshold)));
+}
+
 bool IO::ReadGameKeys(SDL_Event *event, ChiakiControllerState *state)
 {
-	// return true if an event changed (gamepad input)
-
-	// TODO
-	// share vs PS button
 	bool ret = true;
+	int dz = this->stick_deadzone;
 	switch(event->type)
 	{
 		case SDL_JOYAXISMOTION:
-			// printf("SDL_JOYAXISMOTION jaxis %d axis %d value %d\n",
-			// event->jaxis.which, event->jaxis.axis, event->jaxis.value);
 			if(event->jaxis.which == 0)
 			{
-				// left joystick
 				if(event->jaxis.axis == 0)
-					// Left-right movement
-					state->left_x = event->jaxis.value;
+					state->left_x = applyDeadzone(event->jaxis.value, dz);
 				else if(event->jaxis.axis == 1)
-					// Up-Down movement
-					state->left_y = event->jaxis.value;
+					state->left_y = applyDeadzone(event->jaxis.value, dz);
 				else if(event->jaxis.axis == 2)
-					// Left-right movement
-					state->right_x = event->jaxis.value;
+					state->right_x = applyDeadzone(event->jaxis.value, dz);
 				else if(event->jaxis.axis == 3)
-					// Up-Down movement
-					state->right_y = event->jaxis.value;
+					state->right_y = applyDeadzone(event->jaxis.value, dz);
 				else
 					ret = false;
 			}
 			else if(event->jaxis.which == 1)
 			{
-				// right joystick
 				if(event->jaxis.axis == 0)
-					// Left-right movement
-					state->right_x = event->jaxis.value;
+					state->right_x = applyDeadzone(event->jaxis.value, dz);
 				else if(event->jaxis.axis == 1)
-					// Up-Down movement
-					state->right_y = event->jaxis.value;
+					state->right_y = applyDeadzone(event->jaxis.value, dz);
 				else
 					ret = false;
 			}

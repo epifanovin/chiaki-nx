@@ -536,6 +536,39 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	fps->getValueSelectedEvent()->subscribe(fps_cb);
 	ls->addView(fps);
 
+	const std::array<int, 7> bitrate_values = {0, 5000, 10000, 15000, 20000, 30000, 50000};
+	int bitrate_value = 0;
+	int current_bitrate = this->settings->GetBitrate(host);
+	for(size_t i = 0; i < bitrate_values.size(); i++)
+	{
+		if(current_bitrate <= bitrate_values[i])
+		{
+			bitrate_value = (int)i;
+			break;
+		}
+	}
+	brls::SelectListItem *bitrate = new brls::SelectListItem(
+		"Bitrate", {"Auto (from resolution)", "5 Mbps", "10 Mbps", "15 Mbps", "20 Mbps", "30 Mbps", "50 Mbps"}, bitrate_value);
+	auto bitrate_cb = [this, host, bitrate_values](int result) {
+		if(result < 0 || result >= (int)bitrate_values.size())
+			return;
+		this->settings->SetBitrate(host, bitrate_values[(size_t)result]);
+		this->settings->WriteFile();
+	};
+	bitrate->getValueSelectedEvent()->subscribe(bitrate_cb);
+	ls->addView(bitrate);
+
+	CodecPreset codec_preset = this->settings->GetCodec(host);
+	value = (int)codec_preset;
+	brls::SelectListItem *codec = new brls::SelectListItem(
+		"Video Codec", {"Auto (recommended)", "H.264", "H.265 / HEVC"}, value);
+	auto codec_cb = [this, host](int result) {
+		this->settings->SetCodec(host, static_cast<CodecPreset>(result));
+		this->settings->WriteFile();
+	};
+	codec->getValueSelectedEvent()->subscribe(codec_cb);
+	ls->addView(codec);
+
 	const std::array<double, 4> packet_loss_values = {0.01, 0.02, 0.03, 0.05};
 	int packet_loss_value = 2;
 	double current_packet_loss = this->settings->GetPacketLossMax(host);
@@ -570,8 +603,8 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	idr_on_fec_failure->getValueSelectedEvent()->subscribe(idr_on_fec_failure_cb);
 	ls->addView(idr_on_fec_failure);
 
-	const std::array<int, 4> decode_queue_values = {3, 4, 6, 8};
-	int decode_queue_value = 3;
+	const std::array<int, 5> decode_queue_values = {2, 3, 4, 6, 8};
+	int decode_queue_value = 2;
 	int current_decode_queue = this->settings->GetDecodeQueueSize(host);
 	for(size_t i = 0; i < decode_queue_values.size(); i++)
 	{
@@ -582,7 +615,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 		}
 	}
 	brls::SelectListItem *decode_queue_size = new brls::SelectListItem(
-		"Decode Queue Size", {"3", "4", "6", "8 (default)"}, decode_queue_value);
+		"Decode Queue Size", {"2 (lowest latency)", "3", "4 (default)", "6", "8"}, decode_queue_value);
 	auto decode_queue_size_cb = [this, host, decode_queue_values](int result) {
 		if(result < 0 || result >= (int)decode_queue_values.size())
 			return;
@@ -617,6 +650,60 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 
 	haptic->getValueSelectedEvent()->subscribe(haptic_cb);
 	ls->addView(haptic);
+
+	const std::array<int, 7> volume_values = {50, 75, 100, 125, 150, 180, 200};
+	int volume_value = 5;
+	int current_volume = this->settings->GetAudioVolume(host);
+	for(size_t i = 0; i < volume_values.size(); i++)
+	{
+		if(current_volume <= volume_values[i])
+		{
+			volume_value = (int)i;
+			break;
+		}
+	}
+	brls::SelectListItem *audio_volume = new brls::SelectListItem(
+		"Audio Volume", {"50%", "75%", "100%", "125%", "150%", "180% (default)", "200%"}, volume_value);
+	auto audio_volume_cb = [this, host, volume_values](int result) {
+		if(result < 0 || result >= (int)volume_values.size())
+			return;
+		this->settings->SetAudioVolume(host, volume_values[(size_t)result]);
+		this->settings->WriteFile();
+	};
+	audio_volume->getValueSelectedEvent()->subscribe(audio_volume_cb);
+	ls->addView(audio_volume);
+
+	value = this->settings->GetVsync(host) ? 0 : 1;
+	brls::SelectListItem *vsync = new brls::SelectListItem(
+		"VSync", {"On (default)", "Off (lower latency, may tear)"}, value);
+	auto vsync_cb = [this, host](int result) {
+		this->settings->SetVsync(host, result == 0 ? 1 : 0);
+		this->settings->WriteFile();
+	};
+	vsync->getValueSelectedEvent()->subscribe(vsync_cb);
+	ls->addView(vsync);
+
+	const std::array<int, 5> deadzone_values = {0, 5, 10, 15, 20};
+	int deadzone_value = 0;
+	int current_deadzone = this->settings->GetStickDeadzone(host);
+	for(size_t i = 0; i < deadzone_values.size(); i++)
+	{
+		if(current_deadzone <= deadzone_values[i])
+		{
+			deadzone_value = (int)i;
+			break;
+		}
+	}
+	brls::SelectListItem *stick_deadzone = new brls::SelectListItem(
+		"Stick Deadzone", {"None", "5%", "10%", "15%", "20%"}, deadzone_value);
+	auto stick_deadzone_cb = [this, host, deadzone_values](int result) {
+		if(result < 0 || result >= (int)deadzone_values.size())
+			return;
+		this->settings->SetStickDeadzone(host, deadzone_values[(size_t)result]);
+		this->settings->WriteFile();
+	};
+	stick_deadzone->getValueSelectedEvent()->subscribe(stick_deadzone_cb);
+	ls->addView(stick_deadzone);
 
 	if(host != nullptr)
 	{	

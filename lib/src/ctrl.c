@@ -1174,7 +1174,13 @@ static ChiakiErrorCode ctrl_connect(ChiakiCtrl *ctrl)
 	bool have_bitrate = session->target >= CHIAKI_TARGET_PS4_10;
 	if(have_bitrate)
 	{
-		uint8_t bitrate[4] = { 0 };
+		uint32_t bitrate_val = session->connect_info.video_profile.bitrate;
+		uint8_t bitrate[4] = {
+			bitrate_val & 0xff,
+			(bitrate_val >> 8) & 0xff,
+			(bitrate_val >> 0x10) & 0xff,
+			(bitrate_val >> 0x18) & 0xff
+		};
 		uint8_t bitrate_enc[4] = { 0 };
 		err = chiaki_rpcrypt_encrypt(&session->rpcrypt, ctrl->crypt_counter_local++, (const uint8_t *)bitrate, bitrate_enc, 4);
 		if(err != CHIAKI_ERR_SUCCESS)

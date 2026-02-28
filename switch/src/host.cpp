@@ -144,7 +144,10 @@ int Host::InitSession(IO *user)
 {
 	chiaki_connect_video_profile_preset(&(this->video_profile),
 		this->video_resolution, this->video_fps);
-	// Build chiaki ps4 stream session
+
+	if(this->bitrate > 0)
+		this->video_profile.bitrate = this->bitrate;
+
 	chiaki_opus_decoder_init(&(this->opus_decoder), this->log);
 	ChiakiAudioSink audio_sink;
 	ChiakiAudioSink haptics_sink;
@@ -157,9 +160,13 @@ int Host::InitSession(IO *user)
 	chiaki_connect_info.video_profile_auto_downgrade = true;
 	chiaki_connect_info.packet_loss_max = this->packet_loss_max;
 	chiaki_connect_info.enable_idr_on_fec_failure = this->enable_idr_on_fec_failure;
-	if (this->IsPS5()) {
+
+	if(this->codec == CODEC_PRESET_H265)
 		chiaki_connect_info.video_profile.codec = CHIAKI_CODEC_H265;
-	}
+	else if(this->codec == CODEC_PRESET_H264)
+		chiaki_connect_info.video_profile.codec = CHIAKI_CODEC_H264;
+	else if(this->IsPS5())
+		chiaki_connect_info.video_profile.codec = CHIAKI_CODEC_H265;
 	if (this->haptic > 0) {
 		chiaki_connect_info.enable_dualsense = true;
 		if (this->haptic == 1) {
@@ -171,6 +178,9 @@ int Host::InitSession(IO *user)
 
 	chiaki_connect_info.ps5 = this->IsPS5();
 	user->SetDecodeQueueSize(this->decode_queue_size);
+	user->SetAudioVolume(this->audio_volume);
+	user->SetStickDeadzone(this->stick_deadzone);
+	user->SetVsyncMode(this->vsync);
 
 	if(!user->InitAVCodec(this->IsPS5()))
 	{

@@ -67,7 +67,7 @@ class IO
 		bool quit = false;
 		static const int MAX_FRAME_COUNT_MAX = 8;
 		static const int MAX_NV12_PLANE_COUNT = 2;
-		static const int DEFAULT_FRAME_QUEUE_SIZE = 8;
+		static const int DEFAULT_FRAME_QUEUE_SIZE = 4;
 		GLint m_texture_uniform[MAX_NV12_PLANE_COUNT];
 		// opengl reader writer
 		std::mutex mtx;
@@ -80,6 +80,9 @@ class IO
 		AVFrame **frames;
 		uintptr_t origin_ptr[MAX_FRAME_COUNT_MAX][MAX_NV12_PLANE_COUNT] = {};
 			int frame_queue_size = DEFAULT_FRAME_QUEUE_SIZE;
+		int audio_volume = 180;
+		int stick_deadzone = 0;
+		int vsync_mode = 1;
 			std::atomic<int> current_frame_index{0};
 			std::atomic<bool> has_decoded_frame{false};
 			int next_frame_index = 0;
@@ -131,6 +134,9 @@ class IO
 		void SetMesaConfig();
 		bool VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_recovered, void *user);
 		void SetDecodeQueueSize(int value);
+		void SetAudioVolume(int value);
+		void SetStickDeadzone(int value);
+		void SetVsyncMode(int value);
 		void InitAudioCB(unsigned int channels, unsigned int rate);
 		void AudioCB(int16_t *buf, size_t samples_count);
 		bool InitVideo(int video_width, int video_height, int screen_width, int screen_height);
