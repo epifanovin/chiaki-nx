@@ -254,7 +254,9 @@ void HostInterface::Stream()
 	// brls::Application::setDisplayFramerate(true);
 
 	// push raw opengl stream over borealis
-	brls::Application::pushActivity(new brls::Activity(new PSRemotePlay(this->host)));
+	brls::Application::pushActivity(
+		new brls::Activity(new PSRemotePlay(this->host)),
+		brls::TransitionAnimation::NONE);
 }
 
 void HostInterface::CloseStream(ChiakiQuitEvent *quit)

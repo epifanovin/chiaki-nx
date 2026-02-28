@@ -23,13 +23,14 @@ PSRemotePlay::PSRemotePlay(Host *host)
 
 void PSRemotePlay::draw(NVGcontext *vg, float x, float y, float width, float height, brls::Style style, brls::FrameContext *ctx)
 {
-	(void)vg;
-	(void)x;
-	(void)y;
-	(void)width;
-	(void)height;
 	(void)style;
 	(void)ctx;
+
+	// Always paint an opaque background so stale UI layers never bleed into stream startup.
+	nvgBeginPath(vg);
+	nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
+	nvgRect(vg, x, y, width, height);
+	nvgFill(vg);
 
 	this->HandleOverlayTouchTrigger();
 	this->io->MainLoop();
