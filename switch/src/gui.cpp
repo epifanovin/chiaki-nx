@@ -284,7 +284,8 @@ MainApplication::~MainApplication()
 {
 	this->discoverymanager->SetService(false);
 	this->io->FreeController();
-	this->io->FreeVideo();
+	// During app shutdown Borealis already tears down the video platform first.
+	// FreeVideo() can touch stale Deko3D state here and crash on exit, so skip it.
 }
 
 bool MainApplication::Load()
