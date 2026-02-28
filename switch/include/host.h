@@ -16,6 +16,7 @@
 #include "exception.h"
 #include "io.h"
 #include "settings.h"
+#include "microphone.h"
 
 class DiscoveryManager;
 static void Discovery(ChiakiDiscoveryHost *, void *);
@@ -99,6 +100,9 @@ class Host
 		ChiakiSession session;
 		ChiakiOpusDecoder opus_decoder;
 		ChiakiConnectVideoProfile video_profile;
+#ifdef __SWITCH__
+		SwitchMicrophone microphone;
+#endif
 		friend class Settings;
 		friend class DiscoveryManager;
 		// allows session to be passed to gui
@@ -139,6 +143,9 @@ class Host
 		bool HasRPkey();
 		bool IsPS5();
 		void PushHapticsFrame(uint8_t *buf, size_t buf_size);
+		bool StartMicrophone();
+		void StopMicrophone();
+		bool IsMicrophoneRunning();
 };
 
 #endif

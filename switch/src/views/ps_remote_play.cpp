@@ -91,6 +91,15 @@ void PSRemotePlay::OpenOverlay()
 		this->overlay_open = false;
 	});
 
+	std::string mic_label = this->host->IsMicrophoneRunning() ? "Mic: ON" : "Mic: OFF";
+	dialog->addButton(mic_label, [this]() {
+		if(this->host->IsMicrophoneRunning())
+			this->host->StopMicrophone();
+		else
+			this->host->StartMicrophone();
+		this->overlay_open = false;
+	});
+
 	dialog->addButton("Stop Streaming", [this]() {
 		this->overlay_open = false;
 		this->StopStreaming();
