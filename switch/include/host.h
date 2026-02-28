@@ -45,8 +45,14 @@ class Host
 			ChiakiVideoFPSPreset video_fps = CHIAKI_VIDEO_FPS_PRESET_60;
 			double packet_loss_max = 0.03;
 			bool enable_idr_on_fec_failure = true;
-			int decode_queue_size = 8;
+			int decode_queue_size = 4;
 			int haptic = 0;
+			int bitrate = 0;
+			int codec = 0;
+			int audio_volume = 180;
+			int stick_deadzone = 0;
+			int vsync = 1;
+			int audio_backend = 0;
 		std::string host_type;
 		// user info
 		std::string psn_online_id = "";

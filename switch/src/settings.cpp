@@ -83,6 +83,12 @@ Host *Settings::GetOrCreateHost(std::string *host_name)
 			this->SetEnableIDROnFECFailure(host, this->global_enable_idr_on_fec_failure);
 			this->SetDecodeQueueSize(host, this->global_decode_queue_size);
 			this->SetHaptic(host, this->global_haptic);
+			this->SetBitrate(host, this->global_bitrate);
+			this->SetCodec(host, this->global_codec);
+			this->SetAudioVolume(host, this->global_audio_volume);
+			this->SetStickDeadzone(host, this->global_stick_deadzone);
+			this->SetVsync(host, this->global_vsync);
+			this->SetAudioBackend(host, this->global_audio_backend);
 		}
 	return host;
 }
@@ -168,10 +174,34 @@ void Settings::ParseFile()
 					case DECODE_QUEUE_SIZE:
 						this->SetDecodeQueueSize(current_host, value);
 						break;
-					case HAPTIC:
-						this->SetHaptic(current_host, value);
-						break;
-				case TARGET:
+				case HAPTIC:
+					this->SetHaptic(current_host, value);
+					break;
+				case BITRATE:
+					this->SetBitrate(current_host, value);
+					break;
+				case CODEC:
+					this->SetCodec(current_host, value);
+					break;
+				case AUDIO_VOLUME:
+					this->SetAudioVolume(current_host, value);
+					break;
+				case STICK_DEADZONE:
+					this->SetStickDeadzone(current_host, value);
+					break;
+				case VSYNC:
+					this->SetVsync(current_host, value);
+					break;
+				case AUTO_CONNECT:
+					this->SetAutoConnect(value);
+					break;
+				case LAST_HOST:
+					this->SetLastHost(value);
+					break;
+				case AUDIO_BACKEND_KEY:
+					this->SetAudioBackend(current_host, value);
+					break;
+			case TARGET:
 					CHIAKI_LOGV(&this->log, "TARGET %s", value.c_str());
 					if(current_host != nullptr)
 						this->SetChiakiTarget(current_host, value);
@@ -218,6 +248,20 @@ int Settings::WriteFile()
 				config_file << "haptic = "
 						<< std::to_string(this->GetHaptic(nullptr))
 						<< "\n";
+		if(this->global_bitrate > 0)
+			config_file << "bitrate = " << this->global_bitrate << "\n";
+		if(this->global_codec != CODEC_PRESET_AUTO)
+			config_file << "codec = " << (this->global_codec == CODEC_PRESET_H264 ? "h264" : "h265") << "\n";
+		config_file << "audio_volume = " << this->global_audio_volume << "\n";
+		if(this->global_stick_deadzone > 0)
+			config_file << "stick_deadzone = " << this->global_stick_deadzone << "\n";
+		config_file << "vsync = " << this->global_vsync << "\n";
+		config_file << "auto_connect = " << this->global_auto_connect << "\n";
+		if(this->global_last_host.length())
+			config_file << "last_host = \"" << this->global_last_host << "\"\n";
+		if(this->global_audio_backend != AUDIO_BACKEND_SDL)
+			config_file << "audio_backend = audren\n";
+
 		if(this->global_psn_online_id.length())
 			config_file << "psn_online_id = \"" << this->global_psn_online_id << "\"\n";
 
@@ -267,6 +311,16 @@ int Settings::WriteFile()
 			config_file << "haptic = "
 						<< std::to_string(this->GetHaptic(&it->second))
 						<< "\n";
+			if(it->second.bitrate > 0)
+				config_file << "bitrate = " << it->second.bitrate << "\n";
+			if(it->second.codec != CODEC_PRESET_AUTO)
+				config_file << "codec = " << (it->second.codec == CODEC_PRESET_H264 ? "h264" : "h265") << "\n";
+			config_file << "audio_volume = " << it->second.audio_volume << "\n";
+			if(it->second.stick_deadzone > 0)
+				config_file << "stick_deadzone = " << it->second.stick_deadzone << "\n";
+			config_file << "vsync = " << it->second.vsync << "\n";
+			if(it->second.audio_backend != AUDIO_BACKEND_SDL)
+				config_file << "audio_backend = audren\n";
 
 			config_file << "\n";
 		} // for host
@@ -526,8 +580,8 @@ int Settings::GetDecodeQueueSize(Host *host)
 
 void Settings::SetDecodeQueueSize(Host *host, int value)
 {
-	if(value < 3)
-		value = 3;
+	if(value < 2)
+		value = 2;
 	if(value > 8)
 		value = 8;
 	if(host == nullptr)
@@ -574,6 +628,172 @@ void Settings::SetVideoFPS(Host *host, std::string value)
 {
 	ChiakiVideoFPSPreset p = StringToFPSPreset(value);
 	this->SetVideoFPS(host, p);
+}
+
+int Settings::GetBitrate(Host *host)
+{
+	if(host == nullptr)
+		return this->global_bitrate;
+	return host->bitrate;
+}
+
+void Settings::SetBitrate(Host *host, int value)
+{
+	if(value < 0)
+		value = 0;
+	if(value > 50000)
+		value = 50000;
+	if(host == nullptr)
+		this->global_bitrate = value;
+	else
+		host->bitrate = value;
+}
+
+void Settings::SetBitrate(Host *host, std::string value)
+{
+	this->SetBitrate(host, atoi(value.c_str()));
+}
+
+CodecPreset Settings::GetCodec(Host *host)
+{
+	if(host == nullptr)
+		return this->global_codec;
+	return static_cast<CodecPreset>(host->codec);
+}
+
+void Settings::SetCodec(Host *host, CodecPreset value)
+{
+	if(host == nullptr)
+		this->global_codec = value;
+	else
+		host->codec = value;
+}
+
+void Settings::SetCodec(Host *host, std::string value)
+{
+	CodecPreset result = CODEC_PRESET_AUTO;
+	if(value == "h264")
+		result = CODEC_PRESET_H264;
+	else if(value == "h265")
+		result = CODEC_PRESET_H265;
+	this->SetCodec(host, result);
+}
+
+int Settings::GetAudioVolume(Host *host)
+{
+	if(host == nullptr)
+		return this->global_audio_volume;
+	return host->audio_volume;
+}
+
+void Settings::SetAudioVolume(Host *host, int value)
+{
+	if(value < 0)
+		value = 0;
+	if(value > 200)
+		value = 200;
+	if(host == nullptr)
+		this->global_audio_volume = value;
+	else
+		host->audio_volume = value;
+}
+
+void Settings::SetAudioVolume(Host *host, std::string value)
+{
+	this->SetAudioVolume(host, atoi(value.c_str()));
+}
+
+int Settings::GetStickDeadzone(Host *host)
+{
+	if(host == nullptr)
+		return this->global_stick_deadzone;
+	return host->stick_deadzone;
+}
+
+void Settings::SetStickDeadzone(Host *host, int value)
+{
+	if(value < 0)
+		value = 0;
+	if(value > 30)
+		value = 30;
+	if(host == nullptr)
+		this->global_stick_deadzone = value;
+	else
+		host->stick_deadzone = value;
+}
+
+void Settings::SetStickDeadzone(Host *host, std::string value)
+{
+	this->SetStickDeadzone(host, atoi(value.c_str()));
+}
+
+int Settings::GetVsync(Host *host)
+{
+	if(host == nullptr)
+		return this->global_vsync;
+	return host->vsync;
+}
+
+void Settings::SetVsync(Host *host, int value)
+{
+	value = value ? 1 : 0;
+	if(host == nullptr)
+		this->global_vsync = value;
+	else
+		host->vsync = value;
+}
+
+void Settings::SetVsync(Host *host, std::string value)
+{
+	this->SetVsync(host, atoi(value.c_str()));
+}
+
+int Settings::GetAutoConnect()
+{
+	return this->global_auto_connect;
+}
+
+void Settings::SetAutoConnect(int value)
+{
+	this->global_auto_connect = value ? 1 : 0;
+}
+
+void Settings::SetAutoConnect(std::string value)
+{
+	this->SetAutoConnect(atoi(value.c_str()));
+}
+
+std::string Settings::GetLastHost()
+{
+	return this->global_last_host;
+}
+
+void Settings::SetLastHost(std::string value)
+{
+	this->global_last_host = value;
+}
+
+AudioBackend Settings::GetAudioBackend(Host *host)
+{
+	if(host == nullptr)
+		return this->global_audio_backend;
+	return static_cast<AudioBackend>(host->audio_backend);
+}
+
+void Settings::SetAudioBackend(Host *host, AudioBackend value)
+{
+	if(host == nullptr)
+		this->global_audio_backend = value;
+	else
+		host->audio_backend = value;
+}
+
+void Settings::SetAudioBackend(Host *host, std::string value)
+{
+	AudioBackend result = AUDIO_BACKEND_SDL;
+	if(value == "audren")
+		result = AUDIO_BACKEND_AUDREN;
+	this->SetAudioBackend(host, result);
 }
 
 ChiakiTarget Settings::GetChiakiTarget(Host *host)

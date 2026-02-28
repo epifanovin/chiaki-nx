@@ -14,6 +14,17 @@ typedef enum {
 	HAPTIC_PRESET_STRONG = 2
 } HapticPreset;
 
+typedef enum {
+	CODEC_PRESET_AUTO = 0,
+	CODEC_PRESET_H264 = 1,
+	CODEC_PRESET_H265 = 2
+} CodecPreset;
+
+typedef enum {
+	AUDIO_BACKEND_SDL = 0,
+	AUDIO_BACKEND_AUDREN = 1
+} AudioBackend;
+
 // mutual host and settings
 class Host;
 
@@ -34,10 +45,18 @@ class Settings
 			ChiakiVideoFPSPreset global_video_fps = CHIAKI_VIDEO_FPS_PRESET_60;
 			double global_packet_loss_max = 0.03;
 			bool global_enable_idr_on_fec_failure = true;
-			int global_decode_queue_size = 8;
+			int global_decode_queue_size = 4;
 			std::string global_psn_online_id = "";
 			std::string global_psn_account_id = "";
 			HapticPreset global_haptic = HAPTIC_PRESET_DIABLED;
+			int global_bitrate = 0;
+			CodecPreset global_codec = CODEC_PRESET_AUTO;
+			int global_audio_volume = 180;
+			int global_stick_deadzone = 0;
+			int global_vsync = 1;
+			int global_auto_connect = 0;
+			std::string global_last_host = "";
+			AudioBackend global_audio_backend = AUDIO_BACKEND_SDL;
 
 		typedef enum configurationitem
 		{
@@ -56,6 +75,14 @@ class Settings
 				DECODE_QUEUE_SIZE,
 				TARGET,
 				HAPTIC,
+				BITRATE,
+				CODEC,
+				AUDIO_VOLUME,
+				STICK_DEADZONE,
+				VSYNC,
+				AUTO_CONNECT,
+				LAST_HOST,
+				AUDIO_BACKEND_KEY,
 			} ConfigurationItem;
 
 		// dummy parser implementation
@@ -76,6 +103,14 @@ class Settings
 				{DECODE_QUEUE_SIZE, std::regex("^\\s*decode_queue_size\\s*=\\s*\"?(\\d+)\"?")},
 				{TARGET, std::regex("^\\s*target\\s*=\\s*\"?(\\d+)\"?")},
 				{HAPTIC, std::regex("^\\s*haptic\\s*=\\s*\"?(\\d+)\"?")},
+				{BITRATE, std::regex("^\\s*bitrate\\s*=\\s*\"?(\\d+)\"?")},
+				{CODEC, std::regex("^\\s*codec\\s*=\\s*\"?(auto|h264|h265)\"?")},
+				{AUDIO_VOLUME, std::regex("^\\s*audio_volume\\s*=\\s*\"?(\\d+)\"?")},
+				{STICK_DEADZONE, std::regex("^\\s*stick_deadzone\\s*=\\s*\"?(\\d+)\"?")},
+				{VSYNC, std::regex("^\\s*vsync\\s*=\\s*\"?(0|1)\"?")},
+				{AUTO_CONNECT, std::regex("^\\s*auto_connect\\s*=\\s*\"?(0|1)\"?")},
+				{LAST_HOST, std::regex("^\\s*last_host\\s*=\\s*\"?([^\"]+)\"?")},
+				{AUDIO_BACKEND_KEY, std::regex("^\\s*audio_backend\\s*=\\s*\"?(sdl|audren)\"?")},
 			};
 
 		ConfigurationItem ParseLine(std::string * line, std::string * value);
@@ -132,6 +167,37 @@ class Settings
 		HapticPreset GetHaptic(Host * host);
 		void SetHaptic(Host * host, HapticPreset value);
 		void SetHaptic(Host * host, std::string value);
+
+		int GetBitrate(Host *host);
+		void SetBitrate(Host *host, int value);
+		void SetBitrate(Host *host, std::string value);
+
+		CodecPreset GetCodec(Host *host);
+		void SetCodec(Host *host, CodecPreset value);
+		void SetCodec(Host *host, std::string value);
+
+		int GetAudioVolume(Host *host);
+		void SetAudioVolume(Host *host, int value);
+		void SetAudioVolume(Host *host, std::string value);
+
+		int GetStickDeadzone(Host *host);
+		void SetStickDeadzone(Host *host, int value);
+		void SetStickDeadzone(Host *host, std::string value);
+
+		int GetVsync(Host *host);
+		void SetVsync(Host *host, int value);
+		void SetVsync(Host *host, std::string value);
+
+		int GetAutoConnect();
+		void SetAutoConnect(int value);
+		void SetAutoConnect(std::string value);
+
+		std::string GetLastHost();
+		void SetLastHost(std::string value);
+
+		AudioBackend GetAudioBackend(Host *host);
+		void SetAudioBackend(Host *host, AudioBackend value);
+		void SetAudioBackend(Host *host, std::string value);
 
 		ChiakiTarget GetChiakiTarget(Host * host);
 		bool SetChiakiTarget(Host * host, ChiakiTarget target);
