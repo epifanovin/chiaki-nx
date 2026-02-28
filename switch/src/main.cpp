@@ -46,18 +46,29 @@ static const SocketInitConfig g_chiakiSocketInitConfig = {
 
 #ifdef CHIAKI_ENABLE_SWITCH_NXLINK
 static int s_nxlinkSock = -1;
+static bool s_socket_initialized = false;
+
+static bool ensureSocketInitialized()
+{
+	if(s_socket_initialized)
+		return true;
+
+	if(R_FAILED(socketInitialize(&g_chiakiSocketInitConfig)))
+		return false;
+
+	s_socket_initialized = true;
+	return true;
+}
 
 static void initNxLink()
 {
 	// use chiaki socket config initialization
-	if(R_FAILED(socketInitialize(&g_chiakiSocketInitConfig)))
+	if(!ensureSocketInitialized())
 		return;
 
 	s_nxlinkSock = nxlinkStdio();
 	if(s_nxlinkSock >= 0)
 		printf("initNxLink\n");
-	else
-		socketExit();
 }
 
 static void deinitNxLink()
@@ -80,7 +91,7 @@ extern "C" void userAppInit()
 	romfsInit();
 	plInitialize(PlServiceType_User);
 	// load socket custom config
-	socketInitialize(&g_chiakiSocketInitConfig);
+	ensureSocketInitialized();
 	setsysInitialize();
 }
 
@@ -89,18 +100,14 @@ extern "C" void userAppExit()
 #ifdef CHIAKI_ENABLE_SWITCH_NXLINK
 	deinitNxLink();
 #endif // CHIAKI_ENABLE_SWITCH_NXLINK
-	socketExit();
-	/* Cleanup tesla required services. */
-	hidsysExit();
-	pmdmntExit();
+	if(s_socket_initialized)
+	{
+		socketExit();
+		s_socket_initialized = false;
+	}
 	plExit();
-
-	/* Cleanup default services. */
-	fsExit();
-	hidExit();
-	appletExit();
+	romfsExit();
 	setsysExit();
-	smExit();
 }
 #endif // __SWITCH__
 
