@@ -7,6 +7,10 @@
 #include "host.h"
 #include "io.h"
 
+#ifdef __SWITCH__
+#include <switch.h>
+#endif
+
 static void InitAudioCB(unsigned int channels, unsigned int rate, void *user)
 {
 	IO *io = (IO *)user;
@@ -181,6 +185,7 @@ int Host::InitSession(IO *user)
 	}
 
 	chiaki_connect_info.ps5 = this->IsPS5();
+	chiaki_connect_info.enable_keyboard = true;
 	user->SetDecodeQueueSize(this->decode_queue_size);
 	user->SetAudioVolume(this->audio_volume);
 	user->SetStickDeadzone(this->stick_deadzone);
@@ -276,7 +281,51 @@ void Host::ConnectionEventCB(ChiakiEvent *event)
 			if(this->chiaki_event_quit_cb != nullptr)
 				this->chiaki_event_quit_cb(&event->quit);
 			break;
+		case CHIAKI_EVENT_KEYBOARD_OPEN:
+		{
+			CHIAKI_LOGI(this->log, "EventCB CHIAKI_EVENT_KEYBOARD_OPEN");
+			const char *initial_text = event->keyboard.text_str ? event->keyboard.text_str : "";
+			this->HandleKeyboardOpen(initial_text);
+			break;
+		}
+		case CHIAKI_EVENT_KEYBOARD_REMOTE_CLOSE:
+			CHIAKI_LOGI(this->log, "EventCB CHIAKI_EVENT_KEYBOARD_REMOTE_CLOSE");
+			break;
+		default:
+			break;
 	}
+}
+
+void Host::HandleKeyboardOpen(const char *initial_text)
+{
+#ifdef __SWITCH__
+	SwkbdConfig kbd;
+	swkbdCreate(&kbd, 0);
+	swkbdConfigMakePresetDefault(&kbd);
+	swkbdConfigSetHeaderText(&kbd, "PS Remote Play Keyboard");
+	swkbdConfigSetStringLenMax(&kbd, 512);
+	swkbdConfigSetInitialText(&kbd, initial_text ? initial_text : "");
+	swkbdConfigSetBlurBackground(&kbd, true);
+
+	char buffer[513] = {0};
+	Result rc = swkbdShow(&kbd, buffer, sizeof(buffer));
+	swkbdClose(&kbd);
+
+	if(R_SUCCEEDED(rc))
+	{
+		chiaki_session_keyboard_set_text(&this->session, buffer);
+		chiaki_session_keyboard_accept(&this->session);
+		CHIAKI_LOGI(this->log, "Keyboard: accepted text");
+	}
+	else
+	{
+		chiaki_session_keyboard_reject(&this->session);
+		CHIAKI_LOGI(this->log, "Keyboard: rejected/cancelled");
+	}
+#else
+	(void)initial_text;
+	chiaki_session_keyboard_reject(&this->session);
+#endif
 }
 
 void Host::RegistCB(ChiakiRegistEvent *event)

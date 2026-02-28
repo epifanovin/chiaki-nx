@@ -105,6 +105,8 @@ class Host
 		friend class HostInterface;
 		friend class EnterPinView;
 
+		void HandleKeyboardOpen(const char *initial_text);
+
 	public:
 		Host(std::string host_name);
 		~Host();
