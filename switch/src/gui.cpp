@@ -205,14 +205,14 @@ void HostInterface::Connect(brls::View *view)
 
 void HostInterface::ConnectSession()
 {
-	// ignore all user inputs (avoid double connect)
-	// user inputs are restored with the CloseStream
 	brls::Application::blockInputs();
 
-	// connect host sesssion
 	this->host->InitSession(this->io);
 	CHIAKI_LOGI(this->log, "Session initiated");
 	this->host->StartSession();
+
+	this->settings->SetLastHost(this->host->GetHostName());
+	this->settings->WriteFile();
 }
 
 void HostInterface::Disconnect()
@@ -373,7 +373,48 @@ bool MainApplication::Load()
 	brls::Application::pushActivity(new brls::Activity(main_menu_root));
 
 	brls::Logger::info("Load[11]: enter main loop");
-	while (brls::Application::mainLoop()) {
+	int auto_connect_countdown = -1;
+	if(this->settings->GetAutoConnect())
+	{
+		std::string last_host_name = this->settings->GetLastHost();
+		if(last_host_name.length() > 0)
+		{
+			auto *host_map = this->settings->GetHostsMap();
+			auto it = host_map->find(last_host_name);
+			if(it != host_map->end() && (it->second.HasRPkey() || it->second.IsDiscovered()))
+				auto_connect_countdown = 120;
+		}
+	}
+
+	while(brls::Application::mainLoop())
+	{
+		if(auto_connect_countdown > 0)
+		{
+			auto_connect_countdown--;
+		}
+		else if(auto_connect_countdown == 0)
+		{
+			auto_connect_countdown = -1;
+			std::string last_host_name = this->settings->GetLastHost();
+			auto *host_map = this->settings->GetHostsMap();
+			auto it = host_map->find(last_host_name);
+			if(it != host_map->end() && it->second.HasRPkey())
+			{
+				brls::Logger::info("Auto-connecting to last host: {}", last_host_name);
+				Host *auto_host = &it->second;
+				HostInterface *hi = new HostInterface(auto_host);
+				try
+				{
+					hi->ConnectSession();
+					hi->Stream();
+				}
+				catch(...)
+				{
+					brls::Logger::error("Auto-connect failed");
+					delete hi;
+				}
+			}
+		}
 	}
 	brls::Logger::info("Load[12]: main loop ended");
 	
@@ -691,6 +732,27 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	stick_deadzone->getValueSelectedEvent()->subscribe(stick_deadzone_cb);
 	ls->addView(stick_deadzone);
+
+	if(host == nullptr)
+	{
+		value = this->settings->GetAutoConnect() ? 0 : 1;
+		brls::SelectListItem *auto_connect = new brls::SelectListItem(
+			"Auto-Connect", {"Enabled", "Disabled"}, value);
+		auto auto_connect_cb = [this](int result) {
+			this->settings->SetAutoConnect(result == 0 ? 1 : 0);
+			this->settings->WriteFile();
+		};
+		auto_connect->getValueSelectedEvent()->subscribe(auto_connect_cb);
+		ls->addView(auto_connect);
+
+		std::string last = this->settings->GetLastHost();
+		if(last.length() > 0)
+		{
+			brls::ListItem *last_host_item = new brls::ListItem("Last Connected Host");
+			last_host_item->setValue(last.c_str());
+			ls->addView(last_host_item);
+		}
+	}
 
 	if(host != nullptr)
 	{	
