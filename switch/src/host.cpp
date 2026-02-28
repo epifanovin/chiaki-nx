@@ -237,7 +237,8 @@ int Host::FiniSession()
 void Host::StopSession()
 {
 #ifdef __SWITCH__
-	microphone.Stop();
+	if(microphone)
+		microphone->Stop();
 #endif
 	chiaki_session_stop(&this->session);
 }
@@ -247,7 +248,9 @@ bool Host::StartMicrophone()
 #ifdef __SWITCH__
 	if(!this->session_init)
 		return false;
-	return microphone.Start(&this->session, this->log);
+	if(!microphone)
+		microphone = std::make_unique<SwitchMicrophone>();
+	return microphone->Start(&this->session, this->log);
 #else
 	return false;
 #endif
@@ -256,14 +259,15 @@ bool Host::StartMicrophone()
 void Host::StopMicrophone()
 {
 #ifdef __SWITCH__
-	microphone.Stop();
+	if(microphone)
+		microphone->Stop();
 #endif
 }
 
 bool Host::IsMicrophoneRunning()
 {
 #ifdef __SWITCH__
-	return microphone.IsRunning();
+	return microphone && microphone->IsRunning();
 #else
 	return false;
 #endif

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-AGPL-3.0-only-OpenSSL
 #include <fstream>
 #include <cstdlib>
+#include <tuple>
 
 #include <chiaki/base64.h>
 #include "settings.h"
@@ -61,12 +62,11 @@ std::map<std::string, Host> *Settings::GetHostsMap()
 Host *Settings::GetOrCreateHost(std::string *host_name)
 {
 	bool created = false;
-	// update of create Host instance
 	if(this->hosts.find(*host_name) == hosts.end())
 	{
-		// create host if udefined
-		Host h = Host(*host_name);
-		this->hosts.emplace(*host_name, h);
+		this->hosts.emplace(std::piecewise_construct,
+			std::forward_as_tuple(*host_name),
+			std::forward_as_tuple(*host_name));
 		created = true;
 	}
 

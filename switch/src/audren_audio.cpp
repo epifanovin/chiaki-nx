@@ -5,6 +5,7 @@
 #include "audren_audio.h"
 #include <cstring>
 #include <cstdlib>
+#include <malloc.h>
 #include <algorithm>
 #include <climits>
 

@@ -5,6 +5,7 @@
 
 #include <netinet/in.h>
 #include <map>
+#include <memory>
 #include <string>
 
 #include <chiaki/controller.h>
@@ -101,7 +102,7 @@ class Host
 		ChiakiOpusDecoder opus_decoder;
 		ChiakiConnectVideoProfile video_profile;
 #ifdef __SWITCH__
-		SwitchMicrophone microphone;
+		std::unique_ptr<SwitchMicrophone> microphone;
 #endif
 		friend class Settings;
 		friend class DiscoveryManager;
