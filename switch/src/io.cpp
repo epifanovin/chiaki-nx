@@ -165,6 +165,11 @@ void IO::SetAudioBufferMax(int value)
 	this->audio_buffer_max = value;
 }
 
+void IO::SetAudioBackend(int value)
+{
+	this->audio_backend_mode = value;
+}
+
 void IO::SetMesaConfig()
 {
 	//TRACE("%s", "Mesaconfig");
@@ -356,19 +361,23 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 
 void IO::InitAudioCB(unsigned int channels, unsigned int rate)
 {
+#ifdef __SWITCH__
+	if(this->audio_backend_mode == 1)
+	{
+		if(this->audren.Init(channels, rate))
+		{
+			CHIAKI_LOGI(this->log, "Audren audio backend initialized");
+			return;
+		}
+		CHIAKI_LOGW(this->log, "Audren init failed, falling back to SDL");
+	}
+#endif
+
 	SDL_AudioSpec want, have, test;
 	SDL_memset(&want, 0, sizeof(want));
 
-	//source
-	//[I] Audio Header:
-	//[I]   channels = 2
-	//[I]   bits = 16
-	//[I]   rate = 48000
-	//[I]   frame size = 480
-	//[I]   unknown = 1
 	want.freq = rate;
 	want.format = AUDIO_S16SYS;
-	// 2 == stereo
 	want.channels = channels;
 	want.samples = 1024;
 	want.callback = NULL;
@@ -393,21 +402,25 @@ void IO::InitAudioCB(unsigned int channels, unsigned int rate)
 void IO::AudioCB(int16_t *buf, size_t samples_count)
 {
 	float vol = this->audio_volume / 100.0f;
-	for(int x = 0; x < samples_count * 2; x++)
+
+#ifdef __SWITCH__
+	if(this->audio_backend_mode == 1)
+	{
+		this->audren.QueueAudio(buf, samples_count, vol);
+		this->audio_queue_bytes.store(this->audren.GetQueuedBytes(), std::memory_order_relaxed);
+		if(haptic_lock)
+			CleanUpHaptic();
+		return;
+	}
+#endif
+
+	for(size_t x = 0; x < samples_count * 2; x++)
 	{
 		int sample = (int)(buf[x] * vol);
-		// Hard clipping (audio compression)
-		// truncate value that overflow/underflow int16
 		if(sample > INT16_MAX)
-		{
 			buf[x] = INT16_MAX;
-			CHIAKI_LOGD(this->log, "Audio Hard clipping INT16_MAX < %d", sample);
-		}
 		else if(sample < INT16_MIN)
-		{
 			buf[x] = INT16_MIN;
-			CHIAKI_LOGD(this->log, "Audio Hard clipping INT16_MIN > %d", sample);
-		}
 		else
 			buf[x] = (int16_t)sample;
 	}

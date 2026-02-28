@@ -190,6 +190,7 @@ int Host::InitSession(IO *user)
 	user->SetAudioVolume(this->audio_volume);
 	user->SetStickDeadzone(this->stick_deadzone);
 	user->SetVsyncMode(this->vsync);
+	user->SetAudioBackend(this->audio_backend);
 
 	if(!user->InitAVCodec(this->IsPS5()))
 	{

@@ -54,6 +54,7 @@ add_executable(chiaki-borealis WIN32
 	src/settings.cpp
 	src/io.cpp
 	src/deko_video_renderer.cpp
+	src/audren_audio.cpp
 	src/host.cpp
 	src/main.cpp
 	src/gui.cpp)

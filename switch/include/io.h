@@ -50,6 +50,7 @@ extern "C"
 #include <chiaki/log.h>
 
 #include "exception.h"
+#include "audren_audio.h"
 #include "deko_video_renderer.h"
 
 #define PLANES_COUNT 3
@@ -84,6 +85,10 @@ class IO
 		int stick_deadzone = 0;
 		int vsync_mode = 1;
 		int audio_buffer_max = 16000;
+		int audio_backend_mode = 0;
+#ifdef __SWITCH__
+		AudrenAudio audren;
+#endif
 
 		std::atomic<uint64_t> frames_decoded{0};
 		std::atomic<uint64_t> frames_rendered{0};
@@ -144,6 +149,7 @@ class IO
 		void SetStickDeadzone(int value);
 		void SetVsyncMode(int value);
 		void SetAudioBufferMax(int value);
+		void SetAudioBackend(int value);
 
 		uint64_t GetFramesDecoded() { return frames_decoded.load(std::memory_order_relaxed); }
 		uint64_t GetFramesRendered() { return frames_rendered.load(std::memory_order_relaxed); }

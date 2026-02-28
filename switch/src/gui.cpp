@@ -733,6 +733,16 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	stick_deadzone->getValueSelectedEvent()->subscribe(stick_deadzone_cb);
 	ls->addView(stick_deadzone);
 
+	value = (int)this->settings->GetAudioBackend(host);
+	brls::SelectListItem *audio_backend = new brls::SelectListItem(
+		"Audio Backend", {"SDL (default)", "Audren (low latency)"}, value);
+	auto audio_backend_cb = [this, host](int result) {
+		this->settings->SetAudioBackend(host, static_cast<AudioBackend>(result));
+		this->settings->WriteFile();
+	};
+	audio_backend->getValueSelectedEvent()->subscribe(audio_backend_cb);
+	ls->addView(audio_backend);
+
 	if(host == nullptr)
 	{
 		value = this->settings->GetAutoConnect() ? 0 : 1;
