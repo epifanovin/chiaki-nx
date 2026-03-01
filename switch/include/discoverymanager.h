@@ -5,6 +5,7 @@
 
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <functional>
 #include <curl/curl.h>
@@ -58,8 +59,12 @@ class DiscoveryManager
 		void makeRequest(const std::string& username, std::function<void(const std::string&)> successCallback, 
                 std::function<void(const std::string&)> errorCallback);
 
+		void MarkOfflineHosts(const std::set<std::string> &alive_addrs);
 		void RegisterHostStateCallback(const std::string &key, std::function<void(const std::string &host_name)> cb);
 		void UnregisterHostStateCallback(const std::string &key);
+
+	private:
+		void NotifyStateCallbacks(const std::string &host_name);
 };
 
 #endif //CHIAKI_DISCOVERYMANAGER_H

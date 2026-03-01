@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <set>
 #include <borealis/core/thread.hpp>
 #include <discoverymanager.h>
 
@@ -20,10 +21,16 @@
 static void Discovery(ChiakiDiscoveryHost *discovered_hosts, size_t hosts_count, void *user)
 {
 	DiscoveryManager *dm = (DiscoveryManager *)user;
+
+	std::set<std::string> alive_addrs;
 	for(size_t i = 0; i < hosts_count; i++)
 	{
 		dm->DiscoveryCB(discovered_hosts + i);
+		if(discovered_hosts[i].host_addr)
+			alive_addrs.insert(discovered_hosts[i].host_addr);
 	}
+
+	dm->MarkOfflineHosts(alive_addrs);
 }
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *userp) {
@@ -186,9 +193,6 @@ int DiscoveryManager::Send()
 
 void DiscoveryManager::DiscoveryCB(ChiakiDiscoveryHost *discovered_host)
 {
-	// the user ptr is passed as
-	// chiaki_discovery_thread_start arg
-
 	std::string key = discovered_host->host_name;
 	Host *host = this->settings->GetOrCreateHost(&key);
 
@@ -199,10 +203,8 @@ void DiscoveryManager::DiscoveryCB(ChiakiDiscoveryHost *discovered_host)
 	host->state = discovered_host->state;
 	host->discovered = true;
 
-	// add host ptr to list
 	if(discovered_host->system_version && discovered_host->device_discovery_protocol_version)
 	{
-		// example: 07020001
 		ChiakiTarget target = chiaki_discovery_host_system_version_target(discovered_host);
 		host->SetChiakiTarget(target);
 
@@ -240,14 +242,53 @@ void DiscoveryManager::DiscoveryCB(ChiakiDiscoveryHost *discovered_host)
 
 	CHIAKI_LOGI(this->log, "--");
 
+	NotifyStateCallbacks(key);
+
+	// Also update any manually-added hosts that share the same IP
+	if(discovered_host->host_addr)
 	{
-		std::lock_guard<std::mutex> guard(state_cb_mutex);
-		for(auto &pair : host_state_callbacks)
+		std::string addr = discovered_host->host_addr;
+		std::map<std::string, Host> *hosts_map = this->settings->GetHostsMap();
+		for(auto &pair : *hosts_map)
 		{
-			auto cb = pair.second;
-			std::string name = key;
-			brls::sync([cb, name]() { cb(name); });
+			if(pair.first != key && !pair.second.host_addr.empty() && pair.second.host_addr == addr)
+			{
+				pair.second.state = discovered_host->state;
+				pair.second.discovered = true;
+				CHIAKI_LOGI(this->log, "Also matched host '%s' by IP %s", pair.first.c_str(), addr.c_str());
+				NotifyStateCallbacks(pair.first);
+			}
 		}
+	}
+}
+
+void DiscoveryManager::MarkOfflineHosts(const std::set<std::string> &alive_addrs)
+{
+	std::map<std::string, Host> *hosts_map = this->settings->GetHostsMap();
+	for(auto &pair : *hosts_map)
+	{
+		if(!pair.second.discovered)
+			continue;
+		if(pair.second.host_addr.empty())
+			continue;
+		if(alive_addrs.count(pair.second.host_addr))
+			continue;
+
+		pair.second.state = CHIAKI_DISCOVERY_HOST_STATE_UNKNOWN;
+		pair.second.discovered = false;
+		CHIAKI_LOGI(this->log, "Host '%s' (%s) went offline", pair.first.c_str(), pair.second.host_addr.c_str());
+		NotifyStateCallbacks(pair.first);
+	}
+}
+
+void DiscoveryManager::NotifyStateCallbacks(const std::string &host_name)
+{
+	std::lock_guard<std::mutex> guard(state_cb_mutex);
+	for(auto &pair : host_state_callbacks)
+	{
+		auto cb = pair.second;
+		std::string name = host_name;
+		brls::sync([cb, name]() { cb(name); });
 	}
 }
 
