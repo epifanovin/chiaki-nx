@@ -52,6 +52,7 @@ void DekoVideoRenderer::Reset()
 		queue.waitIdle();
 
 	frame_mappings.clear();
+	uniform_buffer.destroy();
 	vertex_buffer.destroy();
 	update_cmdmem.destroy();
 	draw_cmdmem.destroy();
@@ -62,6 +63,7 @@ void DekoVideoRenderer::Reset()
 	chroma_texture_id = 0;
 	current_mapping_index = -1;
 	update_cmdmem_slice = 0;
+	frame_count = 0;
 	initialized = false;
 	video_context = nullptr;
 }
@@ -99,10 +101,20 @@ bool DekoVideoRenderer::EnsureInitialized(AVFrame *frame, int width, int height)
 		return false;
 
 	vertex_shader.load(*code_pool, "romfs:/shaders/basic_vsh.dksh");
-	fragment_shader.load(*code_pool, "romfs:/shaders/texture_fsh.dksh");
+	if(dithering_enabled)
+		fragment_shader.load(*code_pool, "romfs:/shaders/texture_dither_fsh.dksh");
+	else
+		fragment_shader.load(*code_pool, "romfs:/shaders/texture_fsh.dksh");
 
 	vertex_buffer = data_pool->allocate(sizeof(QUAD_VERTICES), alignof(Vertex));
 	std::memcpy(vertex_buffer.getCpuAddr(), QUAD_VERTICES.data(), vertex_buffer.getSize());
+
+	if(dithering_enabled)
+	{
+		uniform_buffer = data_pool->allocate(256, DK_UNIFORM_BUF_ALIGNMENT);
+		float initial = 0.0f;
+		std::memcpy(uniform_buffer.getCpuAddr(), &initial, sizeof(float));
+	}
 
 	luma_texture_id = video_context->allocateImageIndex();
 	chroma_texture_id = video_context->allocateImageIndex();
@@ -130,6 +142,8 @@ bool DekoVideoRenderer::EnsureInitialized(AVFrame *frame, int width, int height)
 	draw_cmdbuf.bindShaders(DkStageFlag_GraphicsMask, {vertex_shader, fragment_shader});
 	draw_cmdbuf.bindTextures(DkStage_Fragment, 0, dkMakeTextureHandle(luma_texture_id, 0));
 	draw_cmdbuf.bindTextures(DkStage_Fragment, 1, dkMakeTextureHandle(chroma_texture_id, 0));
+	if(dithering_enabled)
+		draw_cmdbuf.bindUniformBuffer(DkStage_Fragment, 0, uniform_buffer.getGpuAddr(), uniform_buffer.getSize());
 	draw_cmdbuf.bindRasterizerState(rasterizer_state);
 	draw_cmdbuf.bindColorState(color_state);
 	draw_cmdbuf.bindColorWriteState(color_write_state);
@@ -202,7 +216,8 @@ bool DekoVideoRenderer::UpdateFrameMapping(AVFrame *frame)
 		mapping_index = (int)frame_mappings.size() - 1;
 	}
 
-	if(mapping_index == current_mapping_index)
+	bool mapping_changed = (mapping_index != current_mapping_index);
+	if(!mapping_changed && !dithering_enabled)
 		return true;
 
 	update_cmdbuf.clear();
@@ -212,12 +227,25 @@ bool DekoVideoRenderer::UpdateFrameMapping(AVFrame *frame)
 		UPDATE_CMD_SLICE_SIZE);
 	update_cmdmem_slice = (update_cmdmem_slice + 1) % brls::FRAMEBUFFERS_COUNT;
 
-	FrameMapping &active = frame_mappings[(size_t)mapping_index];
-	image_descriptor_set->update(update_cmdbuf, luma_texture_id, active.luma_desc);
-	image_descriptor_set->update(update_cmdbuf, chroma_texture_id, active.chroma_desc);
+	if(mapping_changed)
+	{
+		FrameMapping &active = frame_mappings[(size_t)mapping_index];
+		image_descriptor_set->update(update_cmdbuf, luma_texture_id, active.luma_desc);
+		image_descriptor_set->update(update_cmdbuf, chroma_texture_id, active.chroma_desc);
+		current_mapping_index = mapping_index;
+	}
+
+	if(dithering_enabled)
+	{
+		struct { float frame_counter; float strength; } params;
+		params.frame_counter = static_cast<float>(frame_count++);
+		params.strength = dither_strength;
+		update_cmdbuf.pushConstants(
+			uniform_buffer.getGpuAddr(), uniform_buffer.getSize(),
+			0, sizeof(params), &params);
+	}
 
 	queue.submitCommands(update_cmdbuf.finishList());
-	current_mapping_index = mapping_index;
 	return true;
 }
 
@@ -240,11 +268,27 @@ bool DekoVideoRenderer::Draw(AVFrame *frame, int width, int height)
 	return true;
 }
 
+void DekoVideoRenderer::SetDithering(int strength)
+{
+	bool enable = (strength > 0);
+	float new_strength = static_cast<float>(strength);
+	if(dithering_enabled == enable && dither_strength == new_strength)
+		return;
+	dither_strength = new_strength;
+	if(dithering_enabled != enable)
+	{
+		dithering_enabled = enable;
+		if(initialized)
+			Reset();
+	}
+}
+
 #else
 
 DekoVideoRenderer::DekoVideoRenderer() = default;
 DekoVideoRenderer::~DekoVideoRenderer() = default;
 bool DekoVideoRenderer::Draw(AVFrame *, int, int) { return false; }
 void DekoVideoRenderer::Reset() {}
+void DekoVideoRenderer::SetDithering(int) {}
 
 #endif

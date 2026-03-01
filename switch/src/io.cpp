@@ -156,6 +156,13 @@ void IO::SetVsyncMode(int value)
 	this->vsync_mode = value ? 1 : 0;
 }
 
+void IO::SetDithering(int strength)
+{
+	this->pending_dither_strength = strength;
+	if(this->deko_video_renderer)
+		this->deko_video_renderer->SetDithering(strength);
+}
+
 void IO::SetAudioBufferMax(int value)
 {
 	if(value < 4000)
@@ -498,6 +505,7 @@ bool IO::InitVideo(int video_width, int video_height, int screen_width, int scre
 	if(this->use_deko_renderer)
 	{
 		this->deko_video_renderer.reset(new DekoVideoRenderer());
+		this->deko_video_renderer->SetDithering(this->pending_dither_strength);
 	}
 	else if(!InitOpenGl())
 	{

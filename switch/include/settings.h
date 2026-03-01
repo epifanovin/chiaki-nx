@@ -77,6 +77,7 @@ class Settings
 			std::string global_last_host = "";
 			AudioBackend global_audio_backend = AUDIO_BACKEND_SDL;
 			int global_show_stats = 0;
+			int global_dithering = 0;
 
 		typedef enum configurationitem
 		{
@@ -104,6 +105,7 @@ class Settings
 				LAST_HOST,
 				AUDIO_BACKEND_KEY,
 				SHOW_STATS,
+				DITHERING,
 			} ConfigurationItem;
 
 		// dummy parser implementation
@@ -133,6 +135,7 @@ class Settings
 				{LAST_HOST, std::regex("^\\s*last_host\\s*=\\s*\"?([^\"]+)\"?")},
 				{AUDIO_BACKEND_KEY, std::regex("^\\s*audio_backend\\s*=\\s*\"?(sdl|audren)\"?")},
 				{SHOW_STATS, std::regex("^\\s*show_stats\\s*=\\s*\"?(0|1)\"?")},
+				{DITHERING, std::regex("^\\s*dithering\\s*=\\s*\"?(\\d+)\"?")},
 			};
 
 		ConfigurationItem ParseLine(std::string * line, std::string * value);
@@ -223,6 +226,9 @@ class Settings
 
 		int GetShowStats();
 		void SetShowStats(int value);
+
+		int GetDithering();
+		void SetDithering(int value);
 
 		ChiakiTarget GetChiakiTarget(Host * host);
 		bool SetChiakiTarget(Host * host, ChiakiTarget target);

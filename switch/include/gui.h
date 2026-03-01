@@ -4,6 +4,7 @@
 #define CHIAKI_GUI_H
 
 #include <map>
+#include <memory>
 #include <thread>
 #include <fmt/format.h>
 
@@ -163,9 +164,15 @@ class HostInterface : public brls::List
 		std::string discoveryCbKey;
 		size_t statusPollId = 0;
 		bool statusPollActive = false;
+		std::shared_ptr<bool> alive = std::make_shared<bool>(true);
+
+		// Non-blocking TCP probe state
+		int probeSock = -1;
+		bool hostReachable = false;
 
 		void UpdateConnectButton();
 		void ScheduleStatusPoll();
+		void AdvanceProbe();
 
 	public:
 		HostInterface(Host *host, DiscoveryManager *dm = nullptr);

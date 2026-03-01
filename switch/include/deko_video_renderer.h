@@ -28,6 +28,7 @@ public:
 
 	bool Draw(AVFrame *frame, int width, int height);
 	void Reset();
+	void SetDithering(int strength);
 
 private:
 #if defined(__SWITCH__) && defined(BOREALIS_USE_DEKO3D)
@@ -48,6 +49,8 @@ private:
 	bool UpdateFrameMapping(AVFrame *frame);
 
 	bool initialized = false;
+	bool dithering_enabled = false;
+	float dither_strength = 1.0f;
 	int frame_width = 0;
 	int frame_height = 0;
 	int screen_width = 0;
@@ -76,6 +79,8 @@ private:
 	dk::ImageLayout luma_layout;
 	dk::ImageLayout chroma_layout;
 	std::vector<FrameMapping> frame_mappings;
+	CMemPool::Handle uniform_buffer;
+	uint32_t frame_count = 0;
 #endif
 };
 

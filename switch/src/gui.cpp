@@ -6,6 +6,15 @@
 #include "views/enter_pin_view.h"
 #include "views/ps_remote_play.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
+#include <errno.h>
+
 
 
 #define SCREEN_W 1280
@@ -68,9 +77,12 @@ HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
 	if(this->discoverymanager && this->host)
 	{
 		this->discoveryCbKey = "hi_" + this->host->GetHostName();
+		auto cb_flag = this->alive;
 		this->discoverymanager->RegisterHostStateCallback(
 			this->discoveryCbKey,
-			[this](const std::string &name) {
+			[this, cb_flag](const std::string &name) {
+				if(!*cb_flag)
+					return;
 				if(name == this->host->GetHostName())
 					UpdateConnectButton();
 			});
@@ -81,10 +93,16 @@ HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
 
 HostInterface::~HostInterface()
 {
+	*this->alive = false;
 	if(this->statusPollActive)
 	{
 		this->statusPollActive = false;
 		brls::cancelDelay(this->statusPollId);
+	}
+	if(this->probeSock >= 0)
+	{
+		close(this->probeSock);
+		this->probeSock = -1;
 	}
 	if(this->discoverymanager && !this->discoveryCbKey.empty())
 		this->discoverymanager->UnregisterHostStateCallback(this->discoveryCbKey);
@@ -96,25 +114,8 @@ void HostInterface::UpdateConnectButton()
 	if(!this->connectButton || !this->host)
 		return;
 
-	bool can_connect = this->host->IsReady();
-	std::string status;
-
-	if(can_connect)
-	{
-		status = "Online";
-	}
-	else
-	{
-		switch(this->host->state)
-		{
-			case CHIAKI_DISCOVERY_HOST_STATE_STANDBY:
-				status = "Standby";
-				break;
-			default:
-				status = "Offline";
-				break;
-		}
-	}
+	bool can_connect = this->host->IsReady() || this->hostReachable;
+	std::string status = can_connect ? "Online" : "Offline";
 
 	this->connectButton->setFocusable(can_connect);
 	this->connectButton->setAlpha(can_connect ? 1.0f : 0.4f);
@@ -124,12 +125,97 @@ void HostInterface::UpdateConnectButton()
 void HostInterface::ScheduleStatusPoll()
 {
 	this->statusPollActive = true;
-	this->statusPollId = brls::delay(2000, [this]() {
-		if(!this->statusPollActive)
+	auto flag = this->alive;
+	this->statusPollId = brls::delay(1000, [this, flag]() {
+		if(!*flag || !this->statusPollActive)
 			return;
+		AdvanceProbe();
 		UpdateConnectButton();
 		ScheduleStatusPoll();
 	});
+}
+
+void HostInterface::AdvanceProbe()
+{
+	if(!this->host)
+		return;
+
+	if(this->probeSock < 0)
+	{
+		// Start a new probe: non-blocking TCP connect to port 9295
+		std::string addr = this->host->GetHostAddr();
+		if(addr.empty())
+			return;
+
+		struct sockaddr_in sa = {};
+		sa.sin_family = AF_INET;
+		sa.sin_port = htons(9295);
+
+		if(inet_pton(AF_INET, addr.c_str(), &sa.sin_addr) != 1)
+		{
+			// Hostname, not IP -- try DNS resolve (instant for cached)
+			struct addrinfo hints = {}, *res = nullptr;
+			hints.ai_family = AF_INET;
+			hints.ai_socktype = SOCK_STREAM;
+			if(getaddrinfo(addr.c_str(), "9295", &hints, &res) != 0 || !res)
+				return;
+			memcpy(&sa, res->ai_addr, sizeof(sa));
+			freeaddrinfo(res);
+		}
+
+		this->probeSock = socket(AF_INET, SOCK_STREAM, 0);
+		if(this->probeSock < 0)
+			return;
+
+		int flags = fcntl(this->probeSock, F_GETFL, 0);
+		fcntl(this->probeSock, F_SETFL, flags | O_NONBLOCK);
+
+		int ret = connect(this->probeSock, (struct sockaddr *)&sa, sizeof(sa));
+		if(ret == 0)
+		{
+			this->hostReachable = true;
+			close(this->probeSock);
+			this->probeSock = -1;
+			CHIAKI_LOGI(this->log, "Probe: %s reachable (instant)", addr.c_str());
+		}
+		else if(errno != EINPROGRESS)
+		{
+			this->hostReachable = false;
+			close(this->probeSock);
+			this->probeSock = -1;
+		}
+		// else: EINPROGRESS, will check on next tick
+	}
+	else
+	{
+		// Check if pending connect completed (non-blocking)
+		struct pollfd pfd = {this->probeSock, POLLOUT, 0};
+		int ret = poll(&pfd, 1, 0);
+
+		if(ret > 0)
+		{
+			int err = 0;
+			socklen_t len = sizeof(err);
+			getsockopt(this->probeSock, SOL_SOCKET, SO_ERROR, &err, &len);
+			this->hostReachable = (err == 0);
+			CHIAKI_LOGI(this->log, "Probe: %s %s (err=%d)",
+				this->host->GetHostAddr().c_str(),
+				this->hostReachable ? "reachable" : "unreachable", err);
+			close(this->probeSock);
+			this->probeSock = -1;
+		}
+		else if(ret == 0)
+		{
+			// Still connecting -- will check next tick.
+			// If too many ticks pass, give up (handled by next start overwriting).
+		}
+		else
+		{
+			this->hostReachable = false;
+			close(this->probeSock);
+			this->probeSock = -1;
+		}
+	}
 }
 
 void HostInterface::Register(Host *host, std::function<void()> success_cb)
@@ -246,10 +332,8 @@ void HostInterface::Connect(brls::View *view)
 		brls::Application::crash("Undefined PlayStation remote version");
 	}
 
-	// ignore state for remote hosts
-	if(this->host->IsDiscovered() && !this->host->IsReady())
+	if(!this->host->IsReady() && !this->hostReachable)
 	{
-		// host in standby mode
 		DIALOG(ptoyp, "Your PlayStation is off, please turn it on");
 		return;
 	}
@@ -269,6 +353,17 @@ void HostInterface::Connect(brls::View *view)
 void HostInterface::ConnectSession()
 {
 	brls::Application::blockInputs();
+
+	if(this->statusPollActive)
+	{
+		this->statusPollActive = false;
+		brls::cancelDelay(this->statusPollId);
+	}
+	if(this->probeSock >= 0)
+	{
+		close(this->probeSock);
+		this->probeSock = -1;
+	}
 
 	if(this->discoverymanager)
 		this->discoverymanager->SetService(false);
@@ -294,6 +389,9 @@ void HostInterface::Disconnect()
 
 	if(this->discoverymanager)
 		this->discoverymanager->SetService(true);
+
+	if(*this->alive)
+		ScheduleStatusPoll();
 }
 
 void HostInterface::Stream()
@@ -819,6 +917,25 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	vsync->getValueSelectedEvent()->subscribe(vsync_cb);
 	ls->addView(vsync);
 	add_hint("Syncs frames to display refresh. Off reduces latency but may cause tearing");
+
+	const int deband_values[] = {0, 16, 32, 64};
+	std::vector<std::string> deband_options = {
+		"Off", "Low (16)", "Medium (32) (Recommended)", "High (64)"};
+	int cur_deband = this->settings->GetDithering();
+	int deband_idx = 0;
+	for(int i = 3; i >= 0; i--)
+	{
+		if(cur_deband >= deband_values[i]) { deband_idx = i; break; }
+	}
+	brls::SelectListItem *debanding = new brls::SelectListItem(
+		"Debanding", deband_options, deband_idx);
+	auto deband_cb = [this, deband_values](int result) {
+		this->settings->SetDithering(deband_values[result]);
+		this->settings->WriteFile();
+	};
+	debanding->getValueSelectedEvent()->subscribe(deband_cb);
+	ls->addView(debanding);
+	add_hint("Smooths compression banding in gradients. No measurable GPU cost");
 
 	int stats_val = this->settings->GetShowStats() ? 0 : 1;
 	brls::SelectListItem *show_stats = new brls::SelectListItem(

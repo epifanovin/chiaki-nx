@@ -6,6 +6,7 @@
 
 #include "host.h"
 #include "io.h"
+#include "settings.h"
 
 #ifdef __SWITCH__
 #include <switch.h>
@@ -185,6 +186,7 @@ int Host::InitSession(IO *user)
 	user->SetAudioVolume(this->audio_volume);
 	user->SetStickDeadzone(this->stick_deadzone);
 	user->SetVsyncMode(this->vsync);
+	user->SetDithering(Settings::GetInstance()->GetDithering());
 	user->SetAudioBackend(this->audio_backend);
 
 	if(!user->InitAVCodec(this->IsPS5()))

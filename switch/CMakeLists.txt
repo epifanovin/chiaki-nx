@@ -117,6 +117,7 @@ if(CHIAKI_IS_SWITCH)
 			COMMAND ${CMAKE_COMMAND} -E make_directory "${CHIAKI_SWITCH_SHADER_DIR}"
 			COMMAND ${NX_UAM_EXE} -s vert -o "${CHIAKI_SWITCH_SHADER_DIR}/basic_vsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/basic_vsh.glsl"
 			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/texture_fsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/texture_fsh.glsl"
+		COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/texture_dither_fsh.dksh" "${CMAKE_CURRENT_SOURCE_DIR}/src/deko3d/texture_dither_fsh.glsl"
 			COMMAND ${NX_UAM_EXE} -s vert -o "${CHIAKI_SWITCH_SHADER_DIR}/fill_vsh.dksh" "${CHIAKI_BOREALIS_DEKO_SHADER_DIR}/fill_vsh.glsl"
 			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/fill_fsh.dksh" "${CHIAKI_BOREALIS_DEKO_SHADER_DIR}/fill_fsh.glsl"
 			COMMAND ${NX_UAM_EXE} -s frag -o "${CHIAKI_SWITCH_SHADER_DIR}/fill_aa_fsh.dksh" "${CHIAKI_BOREALIS_DEKO_SHADER_DIR}/fill_aa_fsh.glsl"

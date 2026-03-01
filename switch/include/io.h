@@ -100,9 +100,10 @@ class IO
 			std::atomic<bool> has_decoded_frame{false};
 			int next_frame_index = 0;
 		bool frames_have_sw_buffers = false;
-		bool use_deko_renderer = false;
-		AVFrame *tmp_frame;
-		std::unique_ptr<DekoVideoRenderer> deko_video_renderer;
+	bool use_deko_renderer = false;
+	int pending_dither_strength = 0;
+	AVFrame *tmp_frame;
+	std::unique_ptr<DekoVideoRenderer> deko_video_renderer;
 		SDL_AudioDeviceID sdl_audio_device_id = 0;
 		SDL_Event sdl_event;
 		SDL_Joystick *sdl_joystick_ptr[SDL_JOYSTICK_COUNT] = {0};
@@ -150,6 +151,7 @@ class IO
 		void SetAudioVolume(int value);
 		void SetStickDeadzone(int value);
 		void SetVsyncMode(int value);
+		void SetDithering(int strength);
 		void SetAudioBufferMax(int value);
 		void SetAudioBackend(int value);
 

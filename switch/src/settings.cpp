@@ -204,6 +204,9 @@ void Settings::ParseFile()
 				case SHOW_STATS:
 					this->SetShowStats(atoi(value.c_str()));
 					break;
+				case DITHERING:
+					this->SetDithering(atoi(value.c_str()));
+					break;
 			case TARGET:
 					CHIAKI_LOGV(&this->log, "TARGET %s", value.c_str());
 					if(current_host != nullptr)
@@ -265,6 +268,7 @@ int Settings::WriteFile()
 		if(this->global_audio_backend != AUDIO_BACKEND_SDL)
 			config_file << "audio_backend = audren\n";
 		config_file << "show_stats = " << this->global_show_stats << "\n";
+		config_file << "dithering = " << this->global_dithering << "\n";
 
 		if(this->global_psn_online_id.length())
 			config_file << "psn_online_id = \"" << this->global_psn_online_id << "\"\n";
@@ -973,4 +977,16 @@ int Settings::GetShowStats()
 void Settings::SetShowStats(int value)
 {
 	this->global_show_stats = value ? 1 : 0;
+}
+
+int Settings::GetDithering()
+{
+	return this->global_dithering;
+}
+
+void Settings::SetDithering(int value)
+{
+	if(value < 0) value = 0;
+	if(value > 128) value = 128;
+	this->global_dithering = value;
 }

@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <set>
+#include <vector>
 #include <borealis/core/thread.hpp>
 #include <discoverymanager.h>
 
@@ -69,12 +70,32 @@ void DiscoveryManager::SetService(bool enable)
 		options.cb = Discovery;
 		options.cb_user = this;
 
+		// Collect direct IPs of known hosts for directed discovery
+		std::vector<struct sockaddr_in> host_direct_addrs;
+		std::map<std::string, Host> *hosts_map = this->settings->GetHostsMap();
+		for(auto &pair : *hosts_map)
+		{
+			if(pair.second.host_addr.empty())
+				continue;
+			struct sockaddr_in ha = {};
+			ha.sin_family = AF_INET;
+			if(inet_pton(AF_INET, pair.second.host_addr.c_str(), &ha.sin_addr) == 1)
+			{
+				host_direct_addrs.push_back(ha);
+				CHIAKI_LOGI(this->log, "Discovery: will probe host '%s' at %s directly",
+					pair.first.c_str(), pair.second.host_addr.c_str());
+			}
+		}
+
+		size_t total_addrs = 1 + host_direct_addrs.size();
 		sockaddr_in addr_broadcast = {};
 		addr_broadcast.sin_family = AF_INET;
 		addr_broadcast.sin_addr.s_addr = addresses.broadcast;
-		options.broadcast_addrs = (struct sockaddr_storage *)malloc(sizeof(struct sockaddr_storage));
-		memcpy(options.broadcast_addrs, &addr_broadcast, sizeof(addr_broadcast));		
-		options.broadcast_num = 1;
+		options.broadcast_addrs = (struct sockaddr_storage *)malloc(total_addrs * sizeof(struct sockaddr_storage));
+		memcpy(options.broadcast_addrs, &addr_broadcast, sizeof(addr_broadcast));
+		for(size_t i = 0; i < host_direct_addrs.size(); i++)
+			memcpy(&options.broadcast_addrs[1 + i], &host_direct_addrs[i], sizeof(struct sockaddr_in));
+		options.broadcast_num = total_addrs;
 			
 		// Base broadcast address (255.255.255.255)
 		struct sockaddr_in in_addr = {};
