@@ -257,9 +257,12 @@ void IO::DumpProgramError(GLuint prog, const char *func, const char *file, int l
 
 bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_recovered, void *user)
 {
-	(void)frames_lost;
 	(void)frame_recovered;
 	(void)user;
+
+	this->total_frames_received.fetch_add(1, std::memory_order_relaxed);
+	if(frames_lost > 0)
+		this->total_frames_lost.fetch_add(frames_lost, std::memory_order_relaxed);
 
 	auto decode_start = std::chrono::high_resolution_clock::now();
 
@@ -1401,4 +1404,13 @@ bool IO::MainLoop()
 	OpenGlDraw();
 
 	return !this->quit;
+}
+
+void IO::ResetStats()
+{
+	this->frames_decoded.store(0, std::memory_order_relaxed);
+	this->frames_rendered.store(0, std::memory_order_relaxed);
+	this->last_decode_time_us.store(0, std::memory_order_relaxed);
+	this->total_frames_lost.store(0, std::memory_order_relaxed);
+	this->total_frames_received.store(0, std::memory_order_relaxed);
 }

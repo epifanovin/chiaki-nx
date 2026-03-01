@@ -151,6 +151,8 @@ int Host::InitSession(IO *user)
 
 	if(this->bitrate > 0)
 		this->video_profile.bitrate = this->bitrate;
+	else
+		this->video_profile.bitrate = 0;
 
 	chiaki_opus_decoder_init(&(this->opus_decoder), this->log);
 	ChiakiAudioSink audio_sink;
@@ -174,14 +176,7 @@ int Host::InitSession(IO *user)
 	if(this->haptic > 0)
 	{
 		chiaki_connect_info.enable_dualsense = true;
-		switch(this->haptic)
-		{
-			case 1: user->HapticBase = 700; break;
-			case 2: user->HapticBase = 580; break;
-			case 3: user->HapticBase = 490; break;
-			case 4: user->HapticBase = 400; break;
-			default: user->HapticBase = 400; break;
-		}
+		user->HapticBase = 255 * 100 / this->haptic;
 	}
 
 	chiaki_connect_info.ps5 = this->IsPS5();
@@ -236,42 +231,9 @@ int Host::FiniSession()
 
 void Host::StopSession()
 {
-#ifdef __SWITCH__
-	if(microphone)
-		microphone->Stop();
-#endif
 	chiaki_session_stop(&this->session);
 }
 
-bool Host::StartMicrophone()
-{
-#ifdef __SWITCH__
-	if(!this->session_init)
-		return false;
-	if(!microphone)
-		microphone = std::make_unique<SwitchMicrophone>();
-	return microphone->Start(&this->session, this->log);
-#else
-	return false;
-#endif
-}
-
-void Host::StopMicrophone()
-{
-#ifdef __SWITCH__
-	if(microphone)
-		microphone->Stop();
-#endif
-}
-
-bool Host::IsMicrophoneRunning()
-{
-#ifdef __SWITCH__
-	return microphone && microphone->IsRunning();
-#else
-	return false;
-#endif
-}
 
 void Host::StartSession()
 {
@@ -331,9 +293,28 @@ void Host::ConnectionEventCB(ChiakiEvent *event)
 	}
 }
 
+void Host::PollKeyboard()
+{
+}
+
+double Host::GetMeasuredBitrate()
+{
+	if(!this->session_init)
+		return 0.0;
+	return this->session.stream_connection.measured_bitrate;
+}
+
+double Host::GetPacketLoss()
+{
+	if(!this->session_init)
+		return 0.0;
+	return this->session.stream_connection.congestion_control.packet_loss;
+}
+
 void Host::HandleKeyboardOpen(const char *initial_text)
 {
 #ifdef __SWITCH__
+	CHIAKI_LOGI(this->log, "Keyboard: opening swkbd");
 	SwkbdConfig kbd;
 	swkbdCreate(&kbd, 0);
 	swkbdConfigMakePresetDefault(&kbd);
@@ -348,14 +329,17 @@ void Host::HandleKeyboardOpen(const char *initial_text)
 
 	if(R_SUCCEEDED(rc))
 	{
-		chiaki_session_keyboard_set_text(&this->session, buffer);
-		chiaki_session_keyboard_accept(&this->session);
-		CHIAKI_LOGI(this->log, "Keyboard: accepted text");
+		CHIAKI_LOGI(this->log, "Keyboard: user entered '%s' (len=%zu)", buffer, strlen(buffer));
+		ChiakiErrorCode err = chiaki_session_keyboard_set_text(&this->session, buffer);
+		CHIAKI_LOGI(this->log, "Keyboard: set_text returned %d", (int)err);
+		err = chiaki_session_keyboard_accept(&this->session);
+		CHIAKI_LOGI(this->log, "Keyboard: accept returned %d", (int)err);
 	}
 	else
 	{
-		chiaki_session_keyboard_reject(&this->session);
-		CHIAKI_LOGI(this->log, "Keyboard: rejected/cancelled");
+		CHIAKI_LOGI(this->log, "Keyboard: user cancelled (rc=0x%x)", rc);
+		ChiakiErrorCode err = chiaki_session_keyboard_reject(&this->session);
+		CHIAKI_LOGI(this->log, "Keyboard: reject returned %d", (int)err);
 	}
 #else
 	(void)initial_text;

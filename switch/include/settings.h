@@ -16,10 +16,22 @@ typedef enum {
 	HAPTIC_PRESET_100 = 4
 } HapticPreset;
 
-// backward compat aliases
 #define HAPTIC_PRESET_DIABLED HAPTIC_PRESET_OFF
 #define HAPTIC_PRESET_WEAK HAPTIC_PRESET_50
 #define HAPTIC_PRESET_STRONG HAPTIC_PRESET_100
+
+static inline int haptic_preset_to_percent(int v)
+{
+	switch(v)
+	{
+		case 0: return 0;
+		case 1: return 25;
+		case 2: return 50;
+		case 3: return 75;
+		case 4: return 100;
+		default: return v;
+	}
+}
 
 typedef enum {
 	CODEC_PRESET_AUTO = 0,
@@ -55,7 +67,7 @@ class Settings
 			int global_decode_queue_size = 4;
 			std::string global_psn_online_id = "";
 			std::string global_psn_account_id = "";
-			HapticPreset global_haptic = HAPTIC_PRESET_DIABLED;
+			int global_haptic = 0;
 			int global_bitrate = 0;
 			CodecPreset global_codec = CODEC_PRESET_AUTO;
 			int global_audio_volume = 180;
@@ -64,6 +76,7 @@ class Settings
 			int global_auto_connect = 0;
 			std::string global_last_host = "";
 			AudioBackend global_audio_backend = AUDIO_BACKEND_SDL;
+			int global_show_stats = 0;
 
 		typedef enum configurationitem
 		{
@@ -90,6 +103,7 @@ class Settings
 				AUTO_CONNECT,
 				LAST_HOST,
 				AUDIO_BACKEND_KEY,
+				SHOW_STATS,
 			} ConfigurationItem;
 
 		// dummy parser implementation
@@ -118,6 +132,7 @@ class Settings
 				{AUTO_CONNECT, std::regex("^\\s*auto_connect\\s*=\\s*\"?(0|1)\"?")},
 				{LAST_HOST, std::regex("^\\s*last_host\\s*=\\s*\"?([^\"]+)\"?")},
 				{AUDIO_BACKEND_KEY, std::regex("^\\s*audio_backend\\s*=\\s*\"?(sdl|audren)\"?")},
+				{SHOW_STATS, std::regex("^\\s*show_stats\\s*=\\s*\"?(0|1)\"?")},
 			};
 
 		ConfigurationItem ParseLine(std::string * line, std::string * value);
@@ -171,8 +186,8 @@ class Settings
 			void SetDecodeQueueSize(Host *host, int value);
 			void SetDecodeQueueSize(Host *host, std::string value);
 
-		HapticPreset GetHaptic(Host * host);
-		void SetHaptic(Host * host, HapticPreset value);
+		int GetHaptic(Host * host);
+		void SetHaptic(Host * host, int value);
 		void SetHaptic(Host * host, std::string value);
 
 		int GetBitrate(Host *host);
@@ -205,6 +220,9 @@ class Settings
 		AudioBackend GetAudioBackend(Host *host);
 		void SetAudioBackend(Host *host, AudioBackend value);
 		void SetAudioBackend(Host *host, std::string value);
+
+		int GetShowStats();
+		void SetShowStats(int value);
 
 		ChiakiTarget GetChiakiTarget(Host * host);
 		bool SetChiakiTarget(Host * host, ChiakiTarget target);

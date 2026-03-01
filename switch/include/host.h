@@ -5,7 +5,6 @@
 
 #include <netinet/in.h>
 #include <map>
-#include <memory>
 #include <string>
 
 #include <chiaki/controller.h>
@@ -17,7 +16,6 @@
 #include "exception.h"
 #include "io.h"
 #include "settings.h"
-#include "microphone.h"
 
 class DiscoveryManager;
 static void Discovery(ChiakiDiscoveryHost *, void *);
@@ -101,16 +99,15 @@ class Host
 		ChiakiSession session;
 		ChiakiOpusDecoder opus_decoder;
 		ChiakiConnectVideoProfile video_profile;
-#ifdef __SWITCH__
-		std::unique_ptr<SwitchMicrophone> microphone;
-#endif
 		friend class Settings;
 		friend class DiscoveryManager;
 		// allows session to be passed to gui
 		friend class HostInterface;
 		friend class EnterPinView;
 
-		void HandleKeyboardOpen(const char *initial_text);
+			void HandleKeyboardOpen(const char *initial_text);
+		bool keyboard_requested = false;
+		std::string keyboard_initial_text;
 
 	public:
 		Host(std::string host_name);
@@ -144,9 +141,9 @@ class Host
 		bool HasRPkey();
 		bool IsPS5();
 		void PushHapticsFrame(uint8_t *buf, size_t buf_size);
-		bool StartMicrophone();
-		void StopMicrophone();
-		bool IsMicrophoneRunning();
+		void PollKeyboard();
+		double GetMeasuredBitrate();
+		double GetPacketLoss();
 };
 
 #endif

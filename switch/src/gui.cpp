@@ -31,8 +31,8 @@ static std::string menuTabTitle(const std::string &host_name)
 	d_##dialog->open();                                                         \
 	brls::Logger::info("Dialog: {0}", r);
 
-HostInterface::HostInterface(Host *host)
-	: host(host)
+HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
+	: host(host), discoverymanager(dm)
 {
 	brls::Logger::info("HostInterface: ctor start ({})", host ? host->GetHostName() : "null");
 	this->settings = Settings::GetInstance();
@@ -207,6 +207,9 @@ void HostInterface::ConnectSession()
 {
 	brls::Application::blockInputs();
 
+	if(this->discoverymanager)
+		this->discoverymanager->SetService(false);
+
 	this->host->InitSession(this->io);
 	CHIAKI_LOGI(this->log, "Session initiated");
 	this->host->StartSession();
@@ -225,6 +228,9 @@ void HostInterface::Disconnect()
 	}
 
 	this->host->FiniSession();
+
+	if(this->discoverymanager)
+		this->discoverymanager->SetService(true);
 }
 
 void HostInterface::Stream()
@@ -337,7 +343,7 @@ bool MainApplication::Load()
 			const std::string tab_title = menuTabTitle(it->second.GetHostName());
 			this->rootFrame->addTab(tab_title, [this, host]() -> brls::View * {
 				brls::Logger::info("Tab creator: host tab start ({})", host ? host->GetHostName() : "null");
-				HostInterface *view = new HostInterface(host);
+				HostInterface *view = new HostInterface(host, this->discoverymanager);
 				this->BuildConfigurationMenu(view, host);
 				brls::Logger::info("Tab creator: host tab done ({})", host ? host->GetHostName() : "null");
 				return view;
@@ -402,7 +408,7 @@ bool MainApplication::Load()
 			{
 				brls::Logger::info("Auto-connecting to last host: {}", last_host_name);
 				Host *auto_host = &it->second;
-				HostInterface *hi = new HostInterface(auto_host);
+				HostInterface *hi = new HostInterface(auto_host, this->discoverymanager);
 				try
 				{
 					hi->ConnectSession();
@@ -512,6 +518,15 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 			break;
 	}
 
+	auto add_hint = [ls](const char *text) {
+		brls::Label *hint = new brls::Label();
+		hint->setText(text);
+		hint->setFontSize(13.0f);
+		hint->setTextColor(nvgRGB(140, 140, 140));
+		hint->setMarginTop(-4.0f);
+		ls->addView(hint);
+	};
+
 	brls::SelectListItem *resolution = new brls::SelectListItem(
 		"Resolution", { "1080p (PS5 and PS4 Pro only)", "720p", "540p", "360p" }, value);
 
@@ -577,27 +592,26 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	fps->getValueSelectedEvent()->subscribe(fps_cb);
 	ls->addView(fps);
 
-	const std::array<int, 7> bitrate_values = {0, 5000, 10000, 15000, 20000, 30000, 50000};
+	std::vector<std::string> bitrate_labels = {"Auto"};
+	std::vector<int> br_values = {0};
+	for(int i = 1; i <= 50; i++)
+	{
+		bitrate_labels.push_back(std::to_string(i) + " Mbps");
+		br_values.push_back(i * 1000);
+	}
 	int bitrate_value = 0;
 	int current_bitrate = this->settings->GetBitrate(host);
-	for(size_t i = 0; i < bitrate_values.size(); i++)
+	for(size_t i = 0; i < br_values.size(); i++)
 	{
-		if(current_bitrate <= bitrate_values[i])
+		if(br_values[i] == current_bitrate)
 		{
 			bitrate_value = (int)i;
 			break;
 		}
 	}
-	brls::SelectListItem *bitrate = new brls::SelectListItem(
-		"Bitrate", {"Auto (from resolution)", "5 Mbps", "10 Mbps", "15 Mbps", "20 Mbps", "30 Mbps", "50 Mbps"}, bitrate_value);
-	auto bitrate_cb = [this, host, bitrate_values](int result) {
-		if(result < 0 || result >= (int)bitrate_values.size())
-			return;
-		this->settings->SetBitrate(host, bitrate_values[(size_t)result]);
-		this->settings->WriteFile();
-	};
-	bitrate->getValueSelectedEvent()->subscribe(bitrate_cb);
+	brls::SelectListItem *bitrate = new brls::SelectListItem("Bitrate", bitrate_labels, bitrate_value);
 	ls->addView(bitrate);
+	add_hint("Auto lets the console adjust bitrate based on network conditions");
 
 	CodecPreset codec_preset = this->settings->GetCodec(host);
 	value = (int)codec_preset;
@@ -609,6 +623,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	codec->getValueSelectedEvent()->subscribe(codec_cb);
 	ls->addView(codec);
+	add_hint("H.265 uses less bandwidth but needs more CPU to decode");
 
 	const std::array<double, 4> packet_loss_values = {0.01, 0.02, 0.03, 0.05};
 	int packet_loss_value = 2;
@@ -632,7 +647,38 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 		this->settings->WriteFile();
 	};
 	packet_loss_max->getValueSelectedEvent()->subscribe(packet_loss_max_cb);
-	ls->addView(packet_loss_max);
+
+	brls::Label *packet_loss_hint = new brls::Label();
+	packet_loss_hint->setText("Caps loss reported to console to prevent aggressive bitrate drops");
+	packet_loss_hint->setFontSize(13.0f);
+	packet_loss_hint->setTextColor(nvgRGB(140, 140, 140));
+	packet_loss_hint->setMarginTop(-4.0f);
+
+	bool bitrate_is_auto = (current_bitrate == 0);
+	if(bitrate_is_auto)
+	{
+		ls->addView(packet_loss_max);
+		ls->addView(packet_loss_hint);
+	}
+
+	auto bitrate_cb = [this, host, br_values, ls, packet_loss_max, packet_loss_hint](int result) {
+		if(result < 0 || result >= (int)br_values.size())
+			return;
+		this->settings->SetBitrate(host, br_values[(size_t)result]);
+		this->settings->WriteFile();
+		bool is_auto = (result == 0);
+		packet_loss_max->setVisibility(is_auto ? brls::Visibility::VISIBLE : brls::Visibility::GONE);
+		packet_loss_hint->setVisibility(is_auto ? brls::Visibility::VISIBLE : brls::Visibility::GONE);
+	};
+	bitrate->getValueSelectedEvent()->subscribe(bitrate_cb);
+
+	if(!bitrate_is_auto)
+	{
+		ls->addView(packet_loss_max);
+		ls->addView(packet_loss_hint);
+		packet_loss_max->setVisibility(brls::Visibility::GONE);
+		packet_loss_hint->setVisibility(brls::Visibility::GONE);
+	}
 
 	value = this->settings->GetEnableIDROnFECFailure(host) ? 0 : 1;
 	brls::SelectListItem *idr_on_fec_failure = new brls::SelectListItem(
@@ -643,6 +689,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	idr_on_fec_failure->getValueSelectedEvent()->subscribe(idr_on_fec_failure_cb);
 	ls->addView(idr_on_fec_failure);
+	add_hint("Request a fresh keyframe when error correction fails, reduces glitches");
 
 	const std::array<int, 5> decode_queue_values = {2, 3, 4, 6, 8};
 	int decode_queue_value = 2;
@@ -665,17 +712,20 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	decode_queue_size->getValueSelectedEvent()->subscribe(decode_queue_size_cb);
 	ls->addView(decode_queue_size);
+	add_hint("Frames buffered before display. Lower = less latency, higher = smoother");
 
-	value = this->settings->GetHaptic(host);
-
-	brls::SelectListItem *haptic = new brls::SelectListItem(
-		"Rumble Intensity", { "Off", "25%", "50%", "75%", "100%" }, value);
-
+	std::vector<std::string> rumble_labels;
+	for(int i = 0; i <= 100; i++)
+		rumble_labels.push_back(i == 0 ? "Off" : std::to_string(i) + "%");
+	int rumble_value = this->settings->GetHaptic(host);
+	if(rumble_value < 0 || rumble_value > 100) rumble_value = 0;
+	brls::SelectListItem *haptic = new brls::SelectListItem("Rumble Intensity", rumble_labels, rumble_value);
 	auto haptic_cb = [this, host](int result) {
-		this->settings->SetHaptic(host, static_cast<HapticPreset>(result));
+		if(result < 0 || result > 100)
+			return;
+		this->settings->SetHaptic(host, result);
 		this->settings->WriteFile();
 	};
-
 	haptic->getValueSelectedEvent()->subscribe(haptic_cb);
 	ls->addView(haptic);
 
@@ -710,6 +760,18 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	vsync->getValueSelectedEvent()->subscribe(vsync_cb);
 	ls->addView(vsync);
+	add_hint("Syncs frames to display refresh. Off reduces latency but may cause tearing");
+
+	int stats_val = this->settings->GetShowStats() ? 0 : 1;
+	brls::SelectListItem *show_stats = new brls::SelectListItem(
+		"Stats HUD", {"Enabled", "Disabled"}, stats_val);
+	auto stats_cb = [this](int result) {
+		this->settings->SetShowStats(result == 0 ? 1 : 0);
+		this->settings->WriteFile();
+	};
+	show_stats->getValueSelectedEvent()->subscribe(stats_cb);
+	ls->addView(show_stats);
+	add_hint("Shows FPS, decode time, bitrate, and frame drops during streaming");
 
 	const std::array<int, 5> deadzone_values = {0, 5, 10, 15, 20};
 	int deadzone_value = 0;
@@ -742,6 +804,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	audio_backend->getValueSelectedEvent()->subscribe(audio_backend_cb);
 	ls->addView(audio_backend);
+	add_hint("Audren is the native Switch audio driver, lower latency than SDL");
 
 	if(host == nullptr)
 	{

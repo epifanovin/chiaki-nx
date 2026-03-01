@@ -201,6 +201,9 @@ void Settings::ParseFile()
 				case AUDIO_BACKEND_KEY:
 					this->SetAudioBackend(current_host, value);
 					break;
+				case SHOW_STATS:
+					this->SetShowStats(atoi(value.c_str()));
+					break;
 			case TARGET:
 					CHIAKI_LOGV(&this->log, "TARGET %s", value.c_str());
 					if(current_host != nullptr)
@@ -261,6 +264,7 @@ int Settings::WriteFile()
 			config_file << "last_host = \"" << this->global_last_host << "\"\n";
 		if(this->global_audio_backend != AUDIO_BACKEND_SDL)
 			config_file << "audio_backend = audren\n";
+		config_file << "show_stats = " << this->global_show_stats << "\n";
 
 		if(this->global_psn_online_id.length())
 			config_file << "psn_online_id = \"" << this->global_psn_online_id << "\"\n";
@@ -595,16 +599,16 @@ void Settings::SetDecodeQueueSize(Host *host, std::string value)
 	this->SetDecodeQueueSize(host, atoi(value.c_str()));
 }
 
-HapticPreset Settings::GetHaptic(Host *host)
+int Settings::GetHaptic(Host *host)
 {
 	if(host == nullptr) return this->global_haptic;
-	int h = host->haptic;
-	if(h < 0 || h > 4) h = 0;
-	return static_cast<HapticPreset>(h);
+	return host->haptic;
 }
 
-void Settings::SetHaptic(Host *host, HapticPreset value)
+void Settings::SetHaptic(Host *host, int value)
 {
+	if(value < 0) value = 0;
+	if(value > 100) value = 100;
 	if(host == nullptr)
 		this->global_haptic = value;
 	else
@@ -613,8 +617,9 @@ void Settings::SetHaptic(Host *host, HapticPreset value)
 void Settings::SetHaptic(Host *host, std::string value)
 {
 	int v = atoi(value.c_str());
-	if(v < 0 || v > 4) v = 0;
-	SetHaptic(host, static_cast<HapticPreset>(v));
+	if(v >= 0 && v <= 4)
+		v = haptic_preset_to_percent(v);
+	SetHaptic(host, v);
 }
 
 void Settings::SetVideoFPS(Host *host, std::string value)
@@ -959,3 +964,13 @@ void Settings::SetCPUOverclock(Host *host, std::string value)
 	this->SetCPUOverclock(host, v);
 }
 #endif
+
+int Settings::GetShowStats()
+{
+	return this->global_show_stats;
+}
+
+void Settings::SetShowStats(int value)
+{
+	this->global_show_stats = value ? 1 : 0;
+}

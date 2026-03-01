@@ -14,7 +14,6 @@ class PSRemotePlay : public brls::View
 		bool overlay_touch_armed = true;
 		bool overlay_open = false;
 		bool stats_visible = false;
-		bool stats_touch_armed = true;
 
 		uint64_t frame_count_at_last_fps = 0;
 		std::chrono::steady_clock::time_point last_fps_time;
@@ -23,7 +22,6 @@ class PSRemotePlay : public brls::View
 		void OpenOverlay();
 		void StopStreaming();
 		void HandleOverlayTouchTrigger();
-		void HandleStatsToggle();
 		void DrawStatsHUD(NVGcontext *vg, float x, float y, float width);
 	public:
 		PSRemotePlay(Host *host);

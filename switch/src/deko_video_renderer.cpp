@@ -10,7 +10,6 @@
 
 extern "C" {
 #include <libavutil/hwcontext_nvtegra.h>
-#include <libavutil/pixdesc.h>
 }
 
 namespace {
@@ -54,7 +53,6 @@ void DekoVideoRenderer::Reset()
 
 	frame_mappings.clear();
 	vertex_buffer.destroy();
-	color_params_buffer.destroy();
 	update_cmdmem.destroy();
 	draw_cmdmem.destroy();
 	data_pool.reset();
@@ -64,54 +62,8 @@ void DekoVideoRenderer::Reset()
 	chroma_texture_id = 0;
 	current_mapping_index = -1;
 	update_cmdmem_slice = 0;
-	detected_colorspace = -1;
-	detected_color_range = -1;
 	initialized = false;
 	video_context = nullptr;
-}
-
-void DekoVideoRenderer::UpdateColorParams(AVFrame *frame)
-{
-	int cs = frame->colorspace;
-	int cr = frame->color_range;
-	if(cs == detected_colorspace && cr == detected_color_range)
-		return;
-	detected_colorspace = cs;
-	detected_color_range = cr;
-
-	ColorParams params;
-	params.sharpen = sharpen_amount;
-	params.uv_offset = 128.0f / 255.0f;
-
-	bool full_range = (cr == AVCOL_RANGE_JPEG);
-	if(full_range)
-	{
-		params.y_offset = 0.0f;
-		params.y_scale = 1.0f;
-	}
-	else
-	{
-		params.y_offset = 16.0f / 255.0f;
-		params.y_scale = 255.0f / (235.0f - 16.0f);
-	}
-
-	bool bt601 = (cs == AVCOL_SPC_BT470BG || cs == AVCOL_SPC_SMPTE170M);
-	if(bt601)
-	{
-		params.r_cr  =  1.5960f;
-		params.g_cb  = -0.3917f;
-		params.g_cr  = -0.8129f;
-		params.b_cb  =  2.0172f;
-	}
-	else
-	{
-		params.r_cr  =  1.7927f;
-		params.g_cb  = -0.2132f;
-		params.g_cr  = -0.5329f;
-		params.b_cb  =  2.1124f;
-	}
-
-	std::memcpy(color_params_buffer.getCpuAddr(), &params, sizeof(params));
 }
 
 bool DekoVideoRenderer::EnsureInitialized(AVFrame *frame, int width, int height)
@@ -152,14 +104,6 @@ bool DekoVideoRenderer::EnsureInitialized(AVFrame *frame, int width, int height)
 	vertex_buffer = data_pool->allocate(sizeof(QUAD_VERTICES), alignof(Vertex));
 	std::memcpy(vertex_buffer.getCpuAddr(), QUAD_VERTICES.data(), vertex_buffer.getSize());
 
-	color_params_buffer = data_pool->allocate(sizeof(ColorParams), DK_UNIFORM_BUF_ALIGNMENT);
-	ColorParams default_params = {
-		16.0f / 255.0f, 255.0f / (235.0f - 16.0f), 128.0f / 255.0f,
-		1.7927f, -0.2132f, -0.5329f, 2.1124f,
-		sharpen_amount
-	};
-	std::memcpy(color_params_buffer.getCpuAddr(), &default_params, sizeof(default_params));
-
 	luma_texture_id = video_context->allocateImageIndex();
 	chroma_texture_id = video_context->allocateImageIndex();
 
@@ -186,7 +130,6 @@ bool DekoVideoRenderer::EnsureInitialized(AVFrame *frame, int width, int height)
 	draw_cmdbuf.bindShaders(DkStageFlag_GraphicsMask, {vertex_shader, fragment_shader});
 	draw_cmdbuf.bindTextures(DkStage_Fragment, 0, dkMakeTextureHandle(luma_texture_id, 0));
 	draw_cmdbuf.bindTextures(DkStage_Fragment, 1, dkMakeTextureHandle(chroma_texture_id, 0));
-	draw_cmdbuf.bindUniformBuffer(DkStage_Fragment, 0, color_params_buffer.getGpuAddr(), sizeof(ColorParams));
 	draw_cmdbuf.bindRasterizerState(rasterizer_state);
 	draw_cmdbuf.bindColorState(color_state);
 	draw_cmdbuf.bindColorWriteState(color_write_state);
@@ -288,8 +231,6 @@ bool DekoVideoRenderer::Draw(AVFrame *frame, int width, int height)
 
 	if(!EnsureInitialized(frame, width, height))
 		return false;
-
-	UpdateColorParams(frame);
 
 	if(!UpdateFrameMapping(frame))
 		return false;

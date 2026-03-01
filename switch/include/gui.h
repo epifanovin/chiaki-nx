@@ -157,9 +157,10 @@ class HostInterface : public brls::List
 		Settings *settings;
 		ChiakiLog *log = nullptr;
 		bool connected = false;
+		DiscoveryManager *discoverymanager = nullptr;
 
 	public:
-		HostInterface(Host *host);
+		HostInterface(Host *host, DiscoveryManager *dm = nullptr);
 		~HostInterface();
 
 		static void Register(Host *host, std::function<void()> success_cb = nullptr);
