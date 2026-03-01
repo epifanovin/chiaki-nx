@@ -90,23 +90,15 @@ void HostInterface::UpdateConnectButton()
 	if(!this->connectButton || !this->host)
 		return;
 
-	bool can_connect = false;
+	bool can_connect = this->host->IsReady();
 	std::string status;
 
-	if(!this->host->IsDiscovered())
+	if(can_connect)
 	{
-		// Manual host with RP key: allow connect since we can't detect state
-		can_connect = this->host->HasRPkey();
-		status = can_connect ? "Manual host" : "Not registered";
-	}
-	else if(this->host->IsReady())
-	{
-		can_connect = true;
 		status = "Online";
 	}
 	else
 	{
-		can_connect = false;
 		switch(this->host->state)
 		{
 			case CHIAKI_DISCOVERY_HOST_STATE_STANDBY:

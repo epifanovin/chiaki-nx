@@ -267,15 +267,14 @@ void DiscoveryManager::MarkOfflineHosts(const std::set<std::string> &alive_addrs
 	std::map<std::string, Host> *hosts_map = this->settings->GetHostsMap();
 	for(auto &pair : *hosts_map)
 	{
-		if(!pair.second.discovered)
-			continue;
 		if(pair.second.host_addr.empty())
 			continue;
 		if(alive_addrs.count(pair.second.host_addr))
 			continue;
+		if(pair.second.state == CHIAKI_DISCOVERY_HOST_STATE_UNKNOWN)
+			continue;
 
 		pair.second.state = CHIAKI_DISCOVERY_HOST_STATE_UNKNOWN;
-		pair.second.discovered = false;
 		CHIAKI_LOGI(this->log, "Host '%s' (%s) went offline", pair.first.c_str(), pair.second.host_addr.c_str());
 		NotifyStateCallbacks(pair.first);
 	}
