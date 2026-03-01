@@ -39,9 +39,9 @@ HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
 	this->log = this->settings->GetLogger();
 	this->io = IO::GetInstance();
 
-	brls::ListItem *connect = new brls::ListItem("Connect");
-	connect->getClickEvent()->subscribe(std::bind(&HostInterface::Connect, this, std::placeholders::_1));
-	this->addView(connect);
+	this->connectButton = new brls::ListItem("Connect");
+	this->connectButton->getClickEvent()->subscribe(std::bind(&HostInterface::Connect, this, std::placeholders::_1));
+	this->addView(this->connectButton);
 
 	brls::ListItem *wakeup = new brls::ListItem("Wakeup");
 	wakeup->getClickEvent()->subscribe(std::bind(&HostInterface::Wakeup, this, std::placeholders::_1));
@@ -61,12 +61,66 @@ HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
 	// allow host to update controller state
 	this->host->SetEventRumbleCallback(std::bind(&IO::SetRumble, this->io, std::placeholders::_1, std::placeholders::_2));
 	this->host->SetReadControllerCallback(std::bind(&IO::UpdateControllerState, this->io, std::placeholders::_1, std::placeholders::_2));
+
+	UpdateConnectButton();
+
+	if(this->discoverymanager && this->host)
+	{
+		this->discoveryCbKey = "hi_" + this->host->GetHostName();
+		this->discoverymanager->RegisterHostStateCallback(
+			this->discoveryCbKey,
+			[this](const std::string &name) {
+				if(name == this->host->GetHostName())
+					UpdateConnectButton();
+			});
+	}
+
 	brls::Logger::info("HostInterface: ctor done ({})", host ? host->GetHostName() : "null");
 }
 
 HostInterface::~HostInterface()
 {
+	if(this->discoverymanager && !this->discoveryCbKey.empty())
+		this->discoverymanager->UnregisterHostStateCallback(this->discoveryCbKey);
 	Disconnect();
+}
+
+void HostInterface::UpdateConnectButton()
+{
+	if(!this->connectButton || !this->host)
+		return;
+
+	bool can_connect = false;
+	std::string status;
+
+	if(!this->host->IsDiscovered())
+	{
+		// Manual host with RP key: allow connect since we can't detect state
+		can_connect = this->host->HasRPkey();
+		status = can_connect ? "Manual host" : "Not registered";
+	}
+	else if(this->host->IsReady())
+	{
+		can_connect = true;
+		status = "Online";
+	}
+	else
+	{
+		can_connect = false;
+		switch(this->host->state)
+		{
+			case CHIAKI_DISCOVERY_HOST_STATE_STANDBY:
+				status = "Standby";
+				break;
+			default:
+				status = "Offline";
+				break;
+		}
+	}
+
+	this->connectButton->setFocusable(can_connect);
+	this->connectButton->setAlpha(can_connect ? 1.0f : 0.4f);
+	this->connectButton->setValue(status);
 }
 
 void HostInterface::Register(Host *host, std::function<void()> success_cb)
@@ -251,18 +305,13 @@ void HostInterface::Stream()
 
 void HostInterface::CloseStream(ChiakiQuitEvent *quit)
 {
-	// session QUIT call back
-	brls::Application::unblockInputs();
-
-	// restore 60 fps limit
-	brls::Application::setLimitedFPS(60);
-
-	// brls::Application::setDisplayFramerate(false);
-	/*
-	  DIALOG(sqrs, chiaki_quit_reason_string(quit->reason));
-	*/
-	brls::Application::notify(chiaki_quit_reason_string(quit->reason));
-	Disconnect();
+	std::string reason = chiaki_quit_reason_string(quit->reason);
+	brls::Threading::sync([this, reason]() {
+		brls::Application::unblockInputs();
+		brls::Application::setLimitedFPS(60);
+		brls::Application::notify(reason);
+		Disconnect();
+	});
 }
 
 void HostInterface::EnterPin(bool isError) 

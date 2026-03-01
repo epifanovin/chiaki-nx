@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <borealis/core/thread.hpp>
 #include <discoverymanager.h>
 
 #define PING_MS 500
@@ -238,6 +239,28 @@ void DiscoveryManager::DiscoveryCB(ChiakiDiscoveryHost *discovered_host)
 		CHIAKI_LOGI(this->log, "Running App Name:                  %s", discovered_host->running_app_name);
 
 	CHIAKI_LOGI(this->log, "--");
+
+	{
+		std::lock_guard<std::mutex> guard(state_cb_mutex);
+		for(auto &pair : host_state_callbacks)
+		{
+			auto cb = pair.second;
+			std::string name = key;
+			brls::sync([cb, name]() { cb(name); });
+		}
+	}
+}
+
+void DiscoveryManager::RegisterHostStateCallback(const std::string &key, std::function<void(const std::string &host_name)> cb)
+{
+	std::lock_guard<std::mutex> guard(state_cb_mutex);
+	host_state_callbacks[key] = cb;
+}
+
+void DiscoveryManager::UnregisterHostStateCallback(const std::string &key)
+{
+	std::lock_guard<std::mutex> guard(state_cb_mutex);
+	host_state_callbacks.erase(key);
 }
 
 

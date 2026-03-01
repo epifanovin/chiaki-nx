@@ -4,6 +4,7 @@
 #define CHIAKI_DISCOVERYMANAGER_H
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <functional>
 #include <curl/curl.h>
@@ -35,6 +36,9 @@ class DiscoveryManager
 		IfAddrs GetIPv4BroadcastAddr();
 		bool service_enable = false;
 
+		std::mutex state_cb_mutex;
+		std::map<std::string, std::function<void(const std::string &host_name)>> host_state_callbacks;
+
 	public:
 		typedef enum hoststate
 		{
@@ -53,6 +57,9 @@ class DiscoveryManager
 		void DiscoveryCB(ChiakiDiscoveryHost *);
 		void makeRequest(const std::string& username, std::function<void(const std::string&)> successCallback, 
                 std::function<void(const std::string&)> errorCallback);
+
+		void RegisterHostStateCallback(const std::string &key, std::function<void(const std::string &host_name)> cb);
+		void UnregisterHostStateCallback(const std::string &key);
 };
 
 #endif //CHIAKI_DISCOVERYMANAGER_H

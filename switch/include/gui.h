@@ -159,6 +159,11 @@ class HostInterface : public brls::List
 		bool connected = false;
 		DiscoveryManager *discoverymanager = nullptr;
 
+		brls::ListItem *connectButton = nullptr;
+		std::string discoveryCbKey;
+
+		void UpdateConnectButton();
+
 	public:
 		HostInterface(Host *host, DiscoveryManager *dm = nullptr);
 		~HostInterface();
