@@ -161,8 +161,11 @@ class HostInterface : public brls::List
 
 		brls::ListItem *connectButton = nullptr;
 		std::string discoveryCbKey;
+		size_t statusPollId = 0;
+		bool statusPollActive = false;
 
 		void UpdateConnectButton();
+		void ScheduleStatusPoll();
 
 	public:
 		HostInterface(Host *host, DiscoveryManager *dm = nullptr);

@@ -63,6 +63,7 @@ HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
 	this->host->SetReadControllerCallback(std::bind(&IO::UpdateControllerState, this->io, std::placeholders::_1, std::placeholders::_2));
 
 	UpdateConnectButton();
+	ScheduleStatusPoll();
 
 	if(this->discoverymanager && this->host)
 	{
@@ -80,6 +81,11 @@ HostInterface::HostInterface(Host *host, DiscoveryManager *dm)
 
 HostInterface::~HostInterface()
 {
+	if(this->statusPollActive)
+	{
+		this->statusPollActive = false;
+		brls::cancelDelay(this->statusPollId);
+	}
 	if(this->discoverymanager && !this->discoveryCbKey.empty())
 		this->discoverymanager->UnregisterHostStateCallback(this->discoveryCbKey);
 	Disconnect();
@@ -113,6 +119,17 @@ void HostInterface::UpdateConnectButton()
 	this->connectButton->setFocusable(can_connect);
 	this->connectButton->setAlpha(can_connect ? 1.0f : 0.4f);
 	this->connectButton->setValue(status);
+}
+
+void HostInterface::ScheduleStatusPoll()
+{
+	this->statusPollActive = true;
+	this->statusPollId = brls::delay(2000, [this]() {
+		if(!this->statusPollActive)
+			return;
+		UpdateConnectButton();
+		ScheduleStatusPoll();
+	});
 }
 
 void HostInterface::Register(Host *host, std::function<void()> success_cb)
