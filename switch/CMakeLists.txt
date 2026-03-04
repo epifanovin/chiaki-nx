@@ -111,6 +111,7 @@ if(CHIAKI_IS_SWITCH)
 		add_custom_target(chiaki_switch_romfs_assets ALL
 			COMMAND ${CMAKE_COMMAND} -E rm -rf "${CHIAKI_SWITCH_ROMFS_DIR}"
 			COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/res" "${CHIAKI_SWITCH_ROMFS_DIR}"
+			COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/borealis/resources/img" "${CHIAKI_SWITCH_ROMFS_DIR}/img"
 			COMMAND ${CMAKE_COMMAND} -E make_directory "${CHIAKI_SWITCH_ROMFS_DIR}/font"
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CHIAKI_SWITCH_ROMFS_DIR}/inter/switch_font.ttf" "${CHIAKI_SWITCH_ROMFS_DIR}/font/font.ttf"
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CHIAKI_SWITCH_ROMFS_DIR}/inter/switch_icons.ttf" "${CHIAKI_SWITCH_ROMFS_DIR}/font/icon.ttf"
