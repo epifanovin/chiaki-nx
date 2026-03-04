@@ -189,6 +189,8 @@ int Host::InitSession(IO *user)
 	user->SetFramePacing(Settings::GetInstance()->GetFramePacing() != 0);
 	user->SetAudioBackend(this->audio_backend);
 
+	user->FreeVideo();
+
 	if(!user->InitAVCodec(this->IsPS5()))
 	{
 		throw Exception("Failed to initiate libav codec");

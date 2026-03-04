@@ -991,7 +991,6 @@ bool IO::ReadGameKeys(SDL_Event *event, ChiakiControllerState *state)
 bool IO::InitAVCodec(bool is_PS5)
 {
 	CHIAKI_LOGI(this->log, "loading AVCodec");
-	// set libav video context
 	if (is_PS5) {
 		this->codec = avcodec_find_decoder_by_name("hevc");
 	} else {

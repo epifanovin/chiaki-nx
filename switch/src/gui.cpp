@@ -397,19 +397,16 @@ void HostInterface::Disconnect()
 void HostInterface::Stream()
 {
 	this->connected = true;
-	// https://github.com/natinusala/borealis/issues/59
-	// disable 60 fps limit
-	brls::Application::setLimitedFPS(0);
+	brls::Threading::sync([this]() {
+		brls::Application::setLimitedFPS(0);
 
-	// Smooth: keep vsync on (swapInterval=1) so display cadence absorbs source jitter
-	// Lowest Latency: disable vsync, condvar in MainLoop drives presentation at decode rate
-	if(!this->settings->GetFramePacing())
-		brls::Application::setSwapInterval(0);
+		if(!this->settings->GetFramePacing())
+			brls::Application::setSwapInterval(0);
 
-	// push raw opengl stream over borealis
-	brls::Application::pushActivity(
-		new brls::Activity(new PSRemotePlay(this->host)),
-		brls::TransitionAnimation::NONE);
+		brls::Application::pushActivity(
+			new brls::Activity(new PSRemotePlay(this->host)),
+			brls::TransitionAnimation::NONE);
+	});
 }
 
 void HostInterface::CloseStream(ChiakiQuitEvent *quit)
@@ -424,17 +421,14 @@ void HostInterface::CloseStream(ChiakiQuitEvent *quit)
 	});
 }
 
-void HostInterface::EnterPin(bool isError) 
+void HostInterface::EnterPin(bool isError)
 {
-	// enter pin callback,
-	// inputs were blocked in ConnectSession
-	brls::Application::unblockInputs();
-	// if this is triggered as a result 
-	if(isError){
-		brls::Application::notify("Wrong PIN");
-	}
-	
-	brls::Application::pushActivity(new brls::Activity(new EnterPinView(this->host, isError)));
+	brls::Threading::sync([this, isError]() {
+		brls::Application::unblockInputs();
+		if(isError)
+			brls::Application::notify("Wrong PIN");
+		brls::Application::pushActivity(new brls::Activity(new EnterPinView(this->host, isError)));
+	});
 }
 
 MainApplication::MainApplication(DiscoveryManager *discoverymanager)
