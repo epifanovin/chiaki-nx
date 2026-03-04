@@ -887,17 +887,6 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	audio_volume->getValueSelectedEvent()->subscribe(audio_volume_cb);
 	ls->addView(audio_volume);
 
-	value = this->settings->GetVsync(host) ? 0 : 1;
-	brls::SelectListItem *vsync = new brls::SelectListItem(
-		"VSync", {"On (default)", "Off (lower latency, may tear)"}, value);
-	auto vsync_cb = [this, host](int result) {
-		this->settings->SetVsync(host, result == 0 ? 1 : 0);
-		this->settings->WriteFile();
-	};
-	vsync->getValueSelectedEvent()->subscribe(vsync_cb);
-	ls->addView(vsync);
-	add_hint("Syncs frames to display refresh. Off reduces latency but may cause tearing");
-
 	const int deband_values[] = {0, 16, 32, 64};
 	std::vector<std::string> deband_options = {
 		"Off", "Low (16)", "Medium (32) (Recommended)", "High (64)"};
@@ -926,7 +915,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	frame_pacing->getValueSelectedEvent()->subscribe(pacing_cb);
 	ls->addView(frame_pacing);
-	add_hint("Smooth: buffers 1 frame (~17ms) to absorb network jitter. Lowest Latency: shows newest frame instantly");
+	add_hint("Smooth: vsync-locked, absorbs source jitter. Lowest Latency: presents at decode rate, ~8ms less lag");
 
 	int stats_val = this->settings->GetShowStats() ? 0 : 1;
 	brls::SelectListItem *show_stats = new brls::SelectListItem(

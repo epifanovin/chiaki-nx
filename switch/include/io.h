@@ -83,7 +83,6 @@ class IO
 			int frame_queue_size = DEFAULT_FRAME_QUEUE_SIZE;
 		int audio_volume = 180;
 		int stick_deadzone = 0;
-		int vsync_mode = 1;
 		int audio_buffer_max = 16000;
 		int audio_backend_mode = 0;
 #ifdef __SWITCH__
@@ -155,7 +154,6 @@ class IO
 		void SetDecodeQueueSize(int value);
 		void SetAudioVolume(int value);
 		void SetStickDeadzone(int value);
-		void SetVsyncMode(int value);
 		void SetDithering(int strength);
 		void SetFramePacing(bool enable);
 		void SetAudioBufferMax(int value);

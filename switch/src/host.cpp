@@ -185,7 +185,6 @@ int Host::InitSession(IO *user)
 	user->SetDecodeQueueSize(2);
 	user->SetAudioVolume(this->audio_volume);
 	user->SetStickDeadzone(this->stick_deadzone);
-	user->SetVsyncMode(this->vsync);
 	user->SetDithering(Settings::GetInstance()->GetDithering());
 	user->SetFramePacing(Settings::GetInstance()->GetFramePacing() != 0);
 	user->SetAudioBackend(this->audio_backend);

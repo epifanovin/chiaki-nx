@@ -151,11 +151,6 @@ void IO::SetStickDeadzone(int value)
 	this->stick_deadzone = value;
 }
 
-void IO::SetVsyncMode(int value)
-{
-	this->vsync_mode = value ? 1 : 0;
-}
-
 void IO::SetDithering(int strength)
 {
 	this->pending_dither_strength = strength;
