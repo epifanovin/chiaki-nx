@@ -398,8 +398,6 @@ void HostInterface::Stream()
 {
 	this->connected = true;
 	brls::Threading::sync([this]() {
-		brls::Application::setLimitedFPS(0);
-
 		if(!this->settings->GetFramePacing())
 			brls::Application::setSwapInterval(0);
 
@@ -415,7 +413,6 @@ void HostInterface::CloseStream(ChiakiQuitEvent *quit)
 	brls::Threading::sync([this, reason]() {
 		brls::Application::unblockInputs();
 		brls::Application::setSwapInterval(1);
-		brls::Application::setLimitedFPS(60);
 		brls::Application::notify(reason);
 		Disconnect();
 	});
