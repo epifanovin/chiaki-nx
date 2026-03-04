@@ -401,8 +401,10 @@ void HostInterface::Stream()
 	// disable 60 fps limit
 	brls::Application::setLimitedFPS(0);
 
-	// show FPS counter
-	// brls::Application::setDisplayFramerate(true);
+	// Smooth: keep vsync on (swapInterval=1) so display cadence absorbs source jitter
+	// Lowest Latency: disable vsync, condvar in MainLoop drives presentation at decode rate
+	if(!this->settings->GetFramePacing())
+		brls::Application::setSwapInterval(0);
 
 	// push raw opengl stream over borealis
 	brls::Application::pushActivity(
@@ -415,6 +417,7 @@ void HostInterface::CloseStream(ChiakiQuitEvent *quit)
 	std::string reason = chiaki_quit_reason_string(quit->reason);
 	brls::Threading::sync([this, reason]() {
 		brls::Application::unblockInputs();
+		brls::Application::setSwapInterval(1);
 		brls::Application::setLimitedFPS(60);
 		brls::Application::notify(reason);
 		Disconnect();
@@ -847,29 +850,6 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	ls->addView(idr_on_fec_failure);
 	add_hint("Request a fresh keyframe when error correction fails, reduces glitches");
 
-	const std::array<int, 5> decode_queue_values = {2, 3, 4, 6, 8};
-	int decode_queue_value = 2;
-	int current_decode_queue = this->settings->GetDecodeQueueSize(host);
-	for(size_t i = 0; i < decode_queue_values.size(); i++)
-	{
-		if(current_decode_queue <= decode_queue_values[i])
-		{
-			decode_queue_value = (int)i;
-			break;
-		}
-	}
-	brls::SelectListItem *decode_queue_size = new brls::SelectListItem(
-		"Decode Queue Size", {"2 (lowest latency)", "3", "4 (default)", "6", "8"}, decode_queue_value);
-	auto decode_queue_size_cb = [this, host, decode_queue_values](int result) {
-		if(result < 0 || result >= (int)decode_queue_values.size())
-			return;
-		this->settings->SetDecodeQueueSize(host, decode_queue_values[(size_t)result]);
-		this->settings->WriteFile();
-	};
-	decode_queue_size->getValueSelectedEvent()->subscribe(decode_queue_size_cb);
-	ls->addView(decode_queue_size);
-	add_hint("Frames buffered before display. Lower = less latency, higher = smoother");
-
 	std::vector<std::string> rumble_labels;
 	for(int i = 0; i <= 100; i++)
 		rumble_labels.push_back(i == 0 ? "Off" : std::to_string(i) + "%");
@@ -936,6 +916,17 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	debanding->getValueSelectedEvent()->subscribe(deband_cb);
 	ls->addView(debanding);
 	add_hint("Smooths compression banding in gradients. No measurable GPU cost");
+
+	int pacing_val = this->settings->GetFramePacing() ? 0 : 1;
+	brls::SelectListItem *frame_pacing = new brls::SelectListItem(
+		"Frame Pacing", {"Smooth (default)", "Lowest Latency"}, pacing_val);
+	auto pacing_cb = [this](int result) {
+		this->settings->SetFramePacing(result == 0 ? 1 : 0);
+		this->settings->WriteFile();
+	};
+	frame_pacing->getValueSelectedEvent()->subscribe(pacing_cb);
+	ls->addView(frame_pacing);
+	add_hint("Smooth: buffers 1 frame (~17ms) to absorb network jitter. Lowest Latency: shows newest frame instantly");
 
 	int stats_val = this->settings->GetShowStats() ? 0 : 1;
 	brls::SelectListItem *show_stats = new brls::SelectListItem(

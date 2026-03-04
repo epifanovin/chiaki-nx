@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-
 #include <glad.h> // glad library (OpenGL loader)
 
 #include <chiaki/session.h>
@@ -37,6 +36,7 @@ Reproducible: False
 #endif
 
 #include <mutex>
+#include <condition_variable>
 #include <map>
 
 extern "C"
@@ -96,12 +96,16 @@ class IO
 		std::atomic<int> audio_queue_bytes{0};
 		std::atomic<uint64_t> total_frames_lost{0};
 		std::atomic<uint64_t> total_frames_received{0};
-			std::atomic<int> current_frame_index{0};
-			std::atomic<bool> has_decoded_frame{false};
-			int next_frame_index = 0;
+		std::atomic<int> current_frame_index{0};
+		std::atomic<bool> has_decoded_frame{false};
+		int next_frame_index = 0;
 		bool frames_have_sw_buffers = false;
 	bool use_deko_renderer = false;
 	int pending_dither_strength = 0;
+	bool frame_pacing_enabled = false;
+	std::mutex frame_signal_mutex;
+	std::condition_variable frame_signal_cv;
+	std::atomic<bool> new_frame_available{false};
 	AVFrame *tmp_frame;
 	std::unique_ptr<DekoVideoRenderer> deko_video_renderer;
 		SDL_AudioDeviceID sdl_audio_device_id = 0;
@@ -142,6 +146,7 @@ class IO
 		void operator=(const IO&) = delete;
 		static IO * GetInstance();
 		int HapticBase = 400;
+		std::atomic<bool> overlay_open{false};
 
 		~IO();
 		bool isFirst = true;
@@ -152,6 +157,7 @@ class IO
 		void SetStickDeadzone(int value);
 		void SetVsyncMode(int value);
 		void SetDithering(int strength);
+		void SetFramePacing(bool enable);
 		void SetAudioBufferMax(int value);
 		void SetAudioBackend(int value);
 

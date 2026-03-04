@@ -103,15 +103,18 @@ void PSRemotePlay::OpenOverlay()
 		return;
 
 	this->overlay_open = true;
+	this->io->overlay_open.store(true, std::memory_order_release);
 	brls::Dialog *dialog = new brls::Dialog("Streaming options");
 	dialog->setCancelable(false);
 
 	dialog->addButton("Resume", [this]() {
 		this->overlay_open = false;
+		this->io->overlay_open.store(false, std::memory_order_release);
 	});
 
 	dialog->addButton("Stop Streaming", [this]() {
 		this->overlay_open = false;
+		this->io->overlay_open.store(false, std::memory_order_release);
 		this->StopStreaming();
 	});
 

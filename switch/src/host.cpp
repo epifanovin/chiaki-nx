@@ -182,11 +182,12 @@ int Host::InitSession(IO *user)
 
 	chiaki_connect_info.ps5 = this->IsPS5();
 	chiaki_connect_info.enable_keyboard = true;
-	user->SetDecodeQueueSize(this->decode_queue_size);
+	user->SetDecodeQueueSize(2);
 	user->SetAudioVolume(this->audio_volume);
 	user->SetStickDeadzone(this->stick_deadzone);
 	user->SetVsyncMode(this->vsync);
 	user->SetDithering(Settings::GetInstance()->GetDithering());
+	user->SetFramePacing(Settings::GetInstance()->GetFramePacing() != 0);
 	user->SetAudioBackend(this->audio_backend);
 
 	if(!user->InitAVCodec(this->IsPS5()))
