@@ -78,7 +78,6 @@ class Settings
 			AudioBackend global_audio_backend = AUDIO_BACKEND_SDL;
 			int global_show_stats = 0;
 			int global_dithering = 0;
-			int global_frame_pacing = 1;
 
 		typedef enum configurationitem
 		{
@@ -107,7 +106,6 @@ class Settings
 				AUDIO_BACKEND_KEY,
 				SHOW_STATS,
 				DITHERING,
-				FRAME_PACING,
 			} ConfigurationItem;
 
 		// dummy parser implementation
@@ -138,7 +136,6 @@ class Settings
 				{AUDIO_BACKEND_KEY, std::regex("^\\s*audio_backend\\s*=\\s*\"?(sdl|audren)\"?")},
 				{SHOW_STATS, std::regex("^\\s*show_stats\\s*=\\s*\"?(0|1)\"?")},
 				{DITHERING, std::regex("^\\s*dithering\\s*=\\s*\"?(\\d+)\"?")},
-				{FRAME_PACING, std::regex("^\\s*frame_pacing\\s*=\\s*\"?(0|1)\"?")},
 			};
 
 		ConfigurationItem ParseLine(std::string * line, std::string * value);
@@ -233,8 +230,6 @@ class Settings
 		int GetDithering();
 		void SetDithering(int value);
 
-		int GetFramePacing();
-		void SetFramePacing(int value);
 
 		ChiakiTarget GetChiakiTarget(Host * host);
 		bool SetChiakiTarget(Host * host, ChiakiTarget target);

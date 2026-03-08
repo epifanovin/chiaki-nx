@@ -398,9 +398,6 @@ void HostInterface::Stream()
 {
 	this->connected = true;
 	brls::Threading::sync([this]() {
-		if(!this->settings->GetFramePacing())
-			brls::Application::setSwapInterval(0);
-
 		brls::Application::pushActivity(
 			new brls::Activity(new PSRemotePlay(this->host)),
 			brls::TransitionAnimation::NONE);
@@ -412,7 +409,6 @@ void HostInterface::CloseStream(ChiakiQuitEvent *quit)
 	std::string reason = chiaki_quit_reason_string(quit->reason);
 	brls::Threading::sync([this, reason]() {
 		brls::Application::unblockInputs();
-		brls::Application::setSwapInterval(1);
 		brls::Application::notify(reason);
 		Disconnect();
 	});
@@ -896,17 +892,6 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	debanding->getValueSelectedEvent()->subscribe(deband_cb);
 	ls->addView(debanding);
 	add_hint("Smooths compression banding in gradients. No measurable GPU cost");
-
-	int pacing_val = this->settings->GetFramePacing() ? 0 : 1;
-	brls::SelectListItem *frame_pacing = new brls::SelectListItem(
-		"Frame Pacing", {"Smooth (default)", "Lowest Latency"}, pacing_val);
-	auto pacing_cb = [this](int result) {
-		this->settings->SetFramePacing(result == 0 ? 1 : 0);
-		this->settings->WriteFile();
-	};
-	frame_pacing->getValueSelectedEvent()->subscribe(pacing_cb);
-	ls->addView(frame_pacing);
-	add_hint("Smooth: 1-frame jitter buffer, eliminates stutter (+16ms latency). Lowest Latency: decode-paced, minimum lag");
 
 	int stats_val = this->settings->GetShowStats() ? 0 : 1;
 	brls::SelectListItem *show_stats = new brls::SelectListItem(

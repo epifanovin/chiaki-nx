@@ -36,7 +36,7 @@ Reproducible: False
 #endif
 
 #include <mutex>
-#include <condition_variable>
+
 #include <queue>
 #include <map>
 
@@ -102,9 +102,7 @@ class IO
 		bool frames_have_sw_buffers = false;
 	bool use_deko_renderer = false;
 	int pending_dither_strength = 0;
-	bool frame_pacing_enabled = false;
 	std::mutex frame_signal_mutex;
-	std::condition_variable frame_signal_cv;
 	std::atomic<bool> new_frame_available{false};
 	std::queue<int> frame_fifo;
 	int last_displayed_index = 0;
@@ -158,7 +156,7 @@ class IO
 		void SetAudioVolume(int value);
 		void SetStickDeadzone(int value);
 		void SetDithering(int strength);
-		void SetFramePacing(bool enable);
+		void SetFrameQueueSize(int value);
 		void SetAudioBufferMax(int value);
 		void SetAudioBackend(int value);
 

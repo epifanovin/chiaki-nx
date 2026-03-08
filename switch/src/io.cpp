@@ -126,11 +126,7 @@ IO::~IO()
 
 void IO::SetDecodeQueueSize(int value)
 {
-	if(value < 2)
-		value = 2;
-	if(value > MAX_FRAME_COUNT_MAX)
-		value = MAX_FRAME_COUNT_MAX;
-	this->frame_queue_size = value;
+	SetFrameQueueSize(value);
 }
 
 void IO::SetAudioVolume(int value)
@@ -158,11 +154,13 @@ void IO::SetDithering(int strength)
 		this->deko_video_renderer->SetDithering(strength);
 }
 
-void IO::SetFramePacing(bool enable)
+void IO::SetFrameQueueSize(int value)
 {
-	this->frame_pacing_enabled = enable;
-	if(enable && this->frame_queue_size < 4)
-		this->frame_queue_size = 4;
+	if(value < 4)
+		value = 4;
+	if(value > MAX_FRAME_COUNT_MAX)
+		value = MAX_FRAME_COUNT_MAX;
+	this->frame_queue_size = value;
 }
 
 void IO::SetAudioBufferMax(int value)
@@ -374,10 +372,8 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 	{
 		std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
 		this->new_frame_available.store(true, std::memory_order_release);
-		if(this->frame_pacing_enabled)
-			this->frame_fifo.push(decoded_index);
+		this->frame_fifo.push(decoded_index);
 	}
-	this->frame_signal_cv.notify_one();
 
 	return true;
 }
@@ -1419,7 +1415,7 @@ bool IO::MainLoop()
 
 		int frame_index;
 
-		if(this->frame_pacing_enabled && !this->overlay_open)
+		if(!this->overlay_open)
 		{
 			std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
 
@@ -1436,14 +1432,6 @@ bool IO::MainLoop()
 			{
 				frame_index = this->last_displayed_index;
 			}
-		}
-		else if(!this->frame_pacing_enabled && !this->overlay_open)
-		{
-			std::unique_lock<std::mutex> lock(this->frame_signal_mutex);
-			this->frame_signal_cv.wait_for(lock, std::chrono::milliseconds(33),
-				[this]{ return this->new_frame_available.load(std::memory_order_acquire) || this->quit; });
-			this->new_frame_available.store(false, std::memory_order_release);
-			frame_index = this->current_frame_index.load(std::memory_order_acquire);
 		}
 		else
 		{

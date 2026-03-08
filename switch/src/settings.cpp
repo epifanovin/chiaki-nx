@@ -207,9 +207,6 @@ void Settings::ParseFile()
 				case DITHERING:
 					this->SetDithering(atoi(value.c_str()));
 					break;
-				case FRAME_PACING:
-					this->SetFramePacing(atoi(value.c_str()));
-					break;
 			case TARGET:
 					CHIAKI_LOGV(&this->log, "TARGET %s", value.c_str());
 					if(current_host != nullptr)
@@ -272,7 +269,6 @@ int Settings::WriteFile()
 			config_file << "audio_backend = audren\n";
 		config_file << "show_stats = " << this->global_show_stats << "\n";
 		config_file << "dithering = " << this->global_dithering << "\n";
-		config_file << "frame_pacing = " << this->global_frame_pacing << "\n";
 
 		if(this->global_psn_online_id.length())
 			config_file << "psn_online_id = \"" << this->global_psn_online_id << "\"\n";
@@ -995,12 +991,3 @@ void Settings::SetDithering(int value)
 	this->global_dithering = value;
 }
 
-int Settings::GetFramePacing()
-{
-	return this->global_frame_pacing;
-}
-
-void Settings::SetFramePacing(int value)
-{
-	this->global_frame_pacing = value ? 1 : 0;
-}

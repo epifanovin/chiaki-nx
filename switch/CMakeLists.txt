@@ -61,7 +61,7 @@ add_executable(chiaki-borealis WIN32
 
 set_target_properties(chiaki-borealis PROPERTIES
 	CXX_STANDARD 17
-	OUTPUT_NAME chiaki)
+	OUTPUT_NAME chiaki-nx)
 
 target_include_directories(chiaki-borealis PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -132,12 +132,12 @@ if(CHIAKI_IS_SWITCH)
 
 	add_dependencies(chiaki-borealis chiaki_switch_romfs_assets)
 
-	add_nro_target(chiaki
+	add_nro_target(chiaki-nx
 		chiaki-borealis
-		"Chiaki-ng"
+		"Chiaki-nx"
 		"StreetPea, kkWong, xlanor, H0neyBadger and thestr4ng3r"
 		"${CHIAKI_VERSION}"
 		"${CMAKE_CURRENT_SOURCE_DIR}/nro_icon.jpg"
 		"${CHIAKI_SWITCH_ROMFS_DIR}")
-	add_dependencies(chiaki_nro chiaki_switch_romfs_assets)
+	add_dependencies(chiaki-nx_nro chiaki_switch_romfs_assets)
 endif()
