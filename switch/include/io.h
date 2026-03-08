@@ -37,6 +37,7 @@ Reproducible: False
 
 #include <mutex>
 #include <condition_variable>
+#include <queue>
 #include <map>
 
 extern "C"
@@ -105,6 +106,8 @@ class IO
 	std::mutex frame_signal_mutex;
 	std::condition_variable frame_signal_cv;
 	std::atomic<bool> new_frame_available{false};
+	std::queue<int> frame_fifo;
+	int last_displayed_index = 0;
 	AVFrame *tmp_frame;
 	std::unique_ptr<DekoVideoRenderer> deko_video_renderer;
 		SDL_AudioDeviceID sdl_audio_device_id = 0;

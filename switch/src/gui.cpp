@@ -906,7 +906,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	frame_pacing->getValueSelectedEvent()->subscribe(pacing_cb);
 	ls->addView(frame_pacing);
-	add_hint("Smooth: display-paced, absorbs source jitter. Lowest Latency: decode-paced, ~8ms less lag");
+	add_hint("Smooth: 1-frame jitter buffer, eliminates stutter (+16ms latency). Lowest Latency: decode-paced, minimum lag");
 
 	int stats_val = this->settings->GetShowStats() ? 0 : 1;
 	brls::SelectListItem *show_stats = new brls::SelectListItem(

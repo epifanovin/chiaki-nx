@@ -135,6 +135,12 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
 			err = stream_connection_send_corrupt_frame(&video_receiver->session->stream_connection, next_frame_expected, frame_index - 1);
 			if(err != CHIAKI_ERR_SUCCESS)
 				CHIAKI_LOGW(video_receiver->log, "Error sending corrupt frame.");
+			if(!video_receiver->waiting_for_idr && video_receiver->session->connect_info.enable_idr_on_fec_failure)
+			{
+				stream_connection_send_idr_request(&video_receiver->session->stream_connection);
+				video_receiver->waiting_for_idr = true;
+				CHIAKI_LOGI(video_receiver->log, "Early IDR request on frame gap %d->%d", next_frame_expected, (int)frame_index);
+			}
 		}
 
 		video_receiver->frame_index_cur = frame_index;

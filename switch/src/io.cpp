@@ -161,6 +161,8 @@ void IO::SetDithering(int strength)
 void IO::SetFramePacing(bool enable)
 {
 	this->frame_pacing_enabled = enable;
+	if(enable && this->frame_queue_size < 4)
+		this->frame_queue_size = 4;
 }
 
 void IO::SetAudioBufferMax(int value)
@@ -372,6 +374,8 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 	{
 		std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
 		this->new_frame_available.store(true, std::memory_order_release);
+		if(this->frame_pacing_enabled)
+			this->frame_fifo.push(decoded_index);
 	}
 	this->frame_signal_cv.notify_one();
 
@@ -481,6 +485,9 @@ bool IO::InitVideo(int video_width, int video_height, int screen_width, int scre
 	{
 		std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
 		this->new_frame_available.store(false, std::memory_order_release);
+		while(!this->frame_fifo.empty())
+			this->frame_fifo.pop();
+		this->last_displayed_index = 0;
 	}
 
 	for(int i = 0; i < this->frame_queue_size; i++)
@@ -1410,17 +1417,39 @@ bool IO::MainLoop()
 		if(!this->has_decoded_frame.load(std::memory_order_acquire))
 			return !this->quit;
 
-		// Lowest Latency: vsync is off, block until decode delivers a new frame
-		if(!this->frame_pacing_enabled && !this->overlay_open)
+		int frame_index;
+
+		if(this->frame_pacing_enabled && !this->overlay_open)
+		{
+			std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
+
+			while(this->frame_fifo.size() > 2)
+				this->frame_fifo.pop();
+
+			if(!this->frame_fifo.empty())
+			{
+				frame_index = this->frame_fifo.front();
+				this->frame_fifo.pop();
+				this->last_displayed_index = frame_index;
+			}
+			else
+			{
+				frame_index = this->last_displayed_index;
+			}
+		}
+		else if(!this->frame_pacing_enabled && !this->overlay_open)
 		{
 			std::unique_lock<std::mutex> lock(this->frame_signal_mutex);
 			this->frame_signal_cv.wait_for(lock, std::chrono::milliseconds(33),
 				[this]{ return this->new_frame_available.load(std::memory_order_acquire) || this->quit; });
 			this->new_frame_available.store(false, std::memory_order_release);
+			frame_index = this->current_frame_index.load(std::memory_order_acquire);
 		}
-		// Smooth: vsync is on (swapInterval=1), just draw the latest frame each vsync
+		else
+		{
+			frame_index = this->current_frame_index.load(std::memory_order_acquire);
+		}
 
-		int frame_index = this->current_frame_index.load(std::memory_order_acquire);
 		AVFrame *frame = this->frames ? this->frames[frame_index] : nullptr;
 		if(frame)
 			this->deko_video_renderer->Draw(frame, this->screen_width, this->screen_height);
