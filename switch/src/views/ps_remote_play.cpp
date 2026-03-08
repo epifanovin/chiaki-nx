@@ -25,6 +25,14 @@ PSRemotePlay::PSRemotePlay(Host *host)
 		this->OpenOverlay();
 		return true;
 	}, false, false, brls::SOUND_CLICK);
+
+	if(!this->stats_visible)
+	{
+		brls::Application::setStreamingFrameCallback([this]() {
+			this->HandleOverlayTouchTrigger();
+			this->io->MainLoop();
+		});
+	}
 }
 
 void PSRemotePlay::draw(NVGcontext *vg, float x, float y, float width, float height, brls::Style style, brls::FrameContext *ctx)
@@ -35,7 +43,6 @@ void PSRemotePlay::draw(NVGcontext *vg, float x, float y, float width, float hei
 
 	this->HandleOverlayTouchTrigger();
 	this->io->MainLoop();
-	this->host->SendFeedbackState();
 
 	if(this->stats_visible)
 		this->DrawStatsHUD(vg, x, y, width);
@@ -104,21 +111,33 @@ void PSRemotePlay::OpenOverlay()
 
 	this->overlay_open = true;
 	this->io->overlay_open.store(true, std::memory_order_release);
-	brls::Dialog *dialog = new brls::Dialog("Streaming options");
-	dialog->setCancelable(false);
 
-	dialog->addButton("Resume", [this]() {
-		this->overlay_open = false;
-		this->io->overlay_open.store(false, std::memory_order_release);
+	brls::Threading::sync([this]() {
+		brls::Application::setStreamingFrameCallback(nullptr);
+
+		brls::Dialog *dialog = new brls::Dialog("Streaming options");
+		dialog->setCancelable(false);
+
+		dialog->addButton("Resume", [this]() {
+			this->overlay_open = false;
+			this->io->overlay_open.store(false, std::memory_order_release);
+			if(!this->stats_visible)
+			{
+				brls::Application::setStreamingFrameCallback([this]() {
+					this->HandleOverlayTouchTrigger();
+					this->io->MainLoop();
+				});
+			}
+		});
+
+		dialog->addButton("Stop Streaming", [this]() {
+			this->overlay_open = false;
+			this->io->overlay_open.store(false, std::memory_order_release);
+			this->StopStreaming();
+		});
+
+		dialog->open();
 	});
-
-	dialog->addButton("Stop Streaming", [this]() {
-		this->overlay_open = false;
-		this->io->overlay_open.store(false, std::memory_order_release);
-		this->StopStreaming();
-	});
-
-	dialog->open();
 }
 
 void PSRemotePlay::StopStreaming()
@@ -156,4 +175,5 @@ void PSRemotePlay::HandleOverlayTouchTrigger()
 
 PSRemotePlay::~PSRemotePlay()
 {
+	brls::Application::setStreamingFrameCallback(nullptr);
 }

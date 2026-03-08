@@ -224,6 +224,7 @@ int Host::FiniSession()
 {
 	if(this->session_init)
 	{
+		IO::GetInstance()->StopInputThread();
 		this->session_init = false;
 		chiaki_session_join(&this->session);
 		chiaki_session_fini(&this->session);
@@ -246,6 +247,7 @@ void Host::StartSession()
 		chiaki_session_fini(&this->session);
 		throw Exception("Chiaki Session Start failed");
 	}
+	IO::GetInstance()->StartInputThread(&this->session);
 }
 
 void Host::SendFeedbackState()

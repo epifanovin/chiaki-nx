@@ -1462,3 +1462,109 @@ void IO::ResetStats()
 	this->total_frames_lost.store(0, std::memory_order_relaxed);
 	this->total_frames_received.store(0, std::memory_order_relaxed);
 }
+
+void IO::StartInputThread(ChiakiSession *session)
+{
+#ifdef __SWITCH__
+	this->input_session.store(session, std::memory_order_release);
+	this->input_thread_running.store(true, std::memory_order_release);
+
+	Result rc = threadCreate(&this->input_thread, InputThreadFunc, this,
+		nullptr, 0x4000, 0x2C, 1);
+	if(R_SUCCEEDED(rc))
+	{
+		this->input_thread_created = true;
+		rc = threadStart(&this->input_thread);
+		if(R_FAILED(rc))
+		{
+			CHIAKI_LOGE(this->log, "Failed to start input thread: 0x%x", rc);
+			this->input_thread_running.store(false, std::memory_order_release);
+			threadClose(&this->input_thread);
+			this->input_thread_created = false;
+		}
+		else
+		{
+			CHIAKI_LOGI(this->log, "Input polling thread started at 120Hz on core 1");
+		}
+	}
+	else
+	{
+		CHIAKI_LOGE(this->log, "Failed to create input thread: 0x%x", rc);
+		this->input_thread_running.store(false, std::memory_order_release);
+	}
+#endif
+}
+
+void IO::StopInputThread()
+{
+#ifdef __SWITCH__
+	this->input_thread_running.store(false, std::memory_order_release);
+	if(this->input_thread_created)
+	{
+		threadWaitForExit(&this->input_thread);
+		threadClose(&this->input_thread);
+		this->input_thread_created = false;
+	}
+	this->input_session.store(nullptr, std::memory_order_release);
+#endif
+}
+
+void IO::InputThreadFunc(void *arg)
+{
+#ifdef __SWITCH__
+	IO *io = (IO *)arg;
+	ChiakiControllerState state;
+	chiaki_controller_state_set_idle(&state);
+	std::map<uint32_t, int8_t> finger_id_touch_id;
+
+	while(io->input_thread_running.load(std::memory_order_acquire))
+	{
+		ChiakiSession *session = io->input_session.load(std::memory_order_acquire);
+		if(!session)
+		{
+			svcSleepThread(8000000LL);
+			continue;
+		}
+
+		padUpdate(&io->pad);
+
+		u64 buttons = padGetButtons(&io->pad);
+		int dz = io->stick_deadzone;
+
+		state.buttons = 0;
+		state.l2_state = 0;
+		state.r2_state = 0;
+
+		if(buttons & HidNpadButton_A)      state.buttons |= CHIAKI_CONTROLLER_BUTTON_MOON;
+		if(buttons & HidNpadButton_B)      state.buttons |= CHIAKI_CONTROLLER_BUTTON_CROSS;
+		if(buttons & HidNpadButton_X)      state.buttons |= CHIAKI_CONTROLLER_BUTTON_PYRAMID;
+		if(buttons & HidNpadButton_Y)      state.buttons |= CHIAKI_CONTROLLER_BUTTON_BOX;
+		if(buttons & HidNpadButton_StickL) state.buttons |= CHIAKI_CONTROLLER_BUTTON_L3;
+		if(buttons & HidNpadButton_StickR) state.buttons |= CHIAKI_CONTROLLER_BUTTON_R3;
+		if(buttons & HidNpadButton_L)      state.buttons |= CHIAKI_CONTROLLER_BUTTON_L1;
+		if(buttons & HidNpadButton_R)      state.buttons |= CHIAKI_CONTROLLER_BUTTON_R1;
+		if(buttons & HidNpadButton_ZL)     state.l2_state = 0xff;
+		if(buttons & HidNpadButton_ZR)     state.r2_state = 0xff;
+		if(buttons & HidNpadButton_Plus)   state.buttons |= CHIAKI_CONTROLLER_BUTTON_OPTIONS;
+		if(buttons & HidNpadButton_Minus)  state.buttons |= CHIAKI_CONTROLLER_BUTTON_PS;
+		if(buttons & HidNpadButton_Left)   state.buttons |= CHIAKI_CONTROLLER_BUTTON_DPAD_LEFT;
+		if(buttons & HidNpadButton_Up)     state.buttons |= CHIAKI_CONTROLLER_BUTTON_DPAD_UP;
+		if(buttons & HidNpadButton_Right)  state.buttons |= CHIAKI_CONTROLLER_BUTTON_DPAD_RIGHT;
+		if(buttons & HidNpadButton_Down)   state.buttons |= CHIAKI_CONTROLLER_BUTTON_DPAD_DOWN;
+
+		HidAnalogStickState left_stick = padGetStickPos(&io->pad, 0);
+		HidAnalogStickState right_stick = padGetStickPos(&io->pad, 1);
+		state.left_x = applyDeadzone((int16_t)left_stick.x, dz);
+		state.left_y = applyDeadzone((int16_t)(-left_stick.y), dz);
+		state.right_x = applyDeadzone((int16_t)right_stick.x, dz);
+		state.right_y = applyDeadzone((int16_t)(-right_stick.y), dz);
+
+		io->ReadGameTouchScreen(&state, &finger_id_touch_id);
+		io->ReadGameSixAxis(&state);
+
+		chiaki_session_set_controller_state(session, &state);
+
+		svcSleepThread(8000000LL);
+	}
+#endif
+}

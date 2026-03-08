@@ -106,6 +106,13 @@ class IO
 	std::atomic<bool> new_frame_available{false};
 	std::queue<int> frame_fifo;
 	int last_displayed_index = 0;
+#ifdef __SWITCH__
+	Thread input_thread;
+	bool input_thread_created = false;
+#endif
+	std::atomic<ChiakiSession*> input_session{nullptr};
+	std::atomic<bool> input_thread_running{false};
+	static void InputThreadFunc(void *arg);
 	AVFrame *tmp_frame;
 	std::unique_ptr<DekoVideoRenderer> deko_video_renderer;
 		SDL_AudioDeviceID sdl_audio_device_id = 0;
@@ -178,7 +185,9 @@ class IO
 		bool FreeController();
 		bool MainLoop();
 		void UpdateControllerState(ChiakiControllerState *state, std::map<uint32_t, int8_t> *finger_id_touch_id);
-		void SetRumble(uint8_t left, uint8_t right);
+		void StartInputThread(ChiakiSession *session);
+	void StopInputThread();
+	void SetRumble(uint8_t left, uint8_t right);
 		void SetHapticRumble(uint8_t left, uint8_t right);
 		void HapticCB(uint8_t *buf, size_t buf_size);
 		void CleanUpHaptic();

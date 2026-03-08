@@ -35,6 +35,24 @@ int64_t get_thread_limit()
 }
 #endif
 
+
+#ifdef __SWITCH__
+typedef struct {
+	ChiakiThreadFunc func;
+	void *arg;
+} ChiakiThreadSwitchWrapper;
+
+static void *chiaki_thread_switch_core_wrapper(void *wrapper_arg)
+{
+	ChiakiThreadSwitchWrapper *w = (ChiakiThreadSwitchWrapper *)wrapper_arg;
+	ChiakiThreadFunc func = w->func;
+	void *real_arg = w->arg;
+	free(w);
+	svcSetThreadCoreMask(CUR_THREAD_HANDLE, 2, (1u << 2) | (1u << 3));
+	return func(real_arg);
+}
+#endif
+
 CHIAKI_EXPORT ChiakiErrorCode chiaki_thread_create(ChiakiThread *thread, ChiakiThreadFunc func, void *arg)
 {
 #if _WIN32
@@ -48,10 +66,22 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_thread_create(ChiakiThread *thread, ChiakiT
 #ifdef __SWITCH__
 	if(get_thread_limit() <= 1)
 		return CHIAKI_ERR_THREAD;
-#endif
+	ChiakiThreadSwitchWrapper *w = malloc(sizeof(ChiakiThreadSwitchWrapper));
+	if(!w)
+		return CHIAKI_ERR_MEMORY;
+	w->func = func;
+	w->arg = arg;
+	int r = pthread_create(&thread->thread, NULL, chiaki_thread_switch_core_wrapper, w);
+	if(r != 0)
+	{
+		free(w);
+		return CHIAKI_ERR_THREAD;
+	}
+#else
 	int r = pthread_create(&thread->thread, NULL, func, arg);
 	if(r != 0)
 		return CHIAKI_ERR_THREAD;
+#endif
 #endif
 	return CHIAKI_ERR_SUCCESS;
 }
