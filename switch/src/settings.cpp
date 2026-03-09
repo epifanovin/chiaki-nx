@@ -594,8 +594,8 @@ void Settings::SetDecodeQueueSize(Host *host, int value)
 {
 	if(value < 2)
 		value = 2;
-	if(value > 8)
-		value = 8;
+	if(value > 12)
+		value = 12;
 	if(host == nullptr)
 		this->global_decode_queue_size = value;
 	else

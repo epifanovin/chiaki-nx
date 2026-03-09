@@ -895,16 +895,21 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 
 	int smooth_val = this->settings->GetSmoothMode();
 	brls::SelectListItem *smooth_mode = new brls::SelectListItem(
-		"Frame Smoothing", {"Smooth", "Smoothest"}, smooth_val);
+		"Frame Smoothing", {
+			"Smooth",
+			"Smoothest (4)",
+			"Smoothest (6)",
+			"Smoothest (8)",
+		}, smooth_val);
 	auto smooth_cb = [this](int result) {
 		this->settings->SetSmoothMode(result);
 		this->settings->WriteFile();
 	};
 	smooth_mode->getValueSelectedEvent()->subscribe(smooth_cb);
 	ls->addView(smooth_mode);
-	add_hint("Smooth: 1-frame jitter buffer, minimal latency (~8ms added). "
-		"Smoothest: deeper buffer, eliminates stutter from PS5 encode jitter "
-		"in complex scenes (+16ms latency)");
+	add_hint("Smooth: 1-frame buffer, minimal latency. "
+		"Smoothest (N): N-frame jitter buffer that always adds ~N*17ms latency. "
+		"Higher N absorbs more PS5 encode jitter in complex scenes");
 
 	int stats_val = this->settings->GetShowStats() ? 0 : 1;
 	brls::SelectListItem *show_stats = new brls::SelectListItem(

@@ -36,6 +36,7 @@ Reproducible: False
 #endif
 
 #include <mutex>
+#include <condition_variable>
 
 #include <queue>
 #include <map>
@@ -67,7 +68,7 @@ class IO
 		int video_width;
 		int video_height;
 		bool quit = false;
-		static const int MAX_FRAME_COUNT_MAX = 8;
+		static const int MAX_FRAME_COUNT_MAX = 12;
 		static const int MAX_NV12_PLANE_COUNT = 2;
 		static const int DEFAULT_FRAME_QUEUE_SIZE = 4;
 		GLint m_texture_uniform[MAX_NV12_PLANE_COUNT];
@@ -103,6 +104,7 @@ class IO
 	bool use_deko_renderer = false;
 	int pending_dither_strength = 0;
 	std::mutex frame_signal_mutex;
+	std::condition_variable frame_cv;
 	std::atomic<bool> new_frame_available{false};
 	std::queue<int> frame_fifo;
 	int last_displayed_index = 0;

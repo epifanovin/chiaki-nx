@@ -385,6 +385,7 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 		this->frame_fifo.push(decoded_index);
 		fifo_sz = this->frame_fifo.size();
 	}
+	this->frame_cv.notify_one();
 
 	static auto last_decode_tp = std::chrono::high_resolution_clock::now();
 	static int decode_log_counter = 0;
@@ -1432,6 +1433,8 @@ bool IO::MainLoop()
 {
 	if(this->use_deko_renderer && this->deko_video_renderer)
 	{
+		auto frame_start = std::chrono::high_resolution_clock::now();
+
 		if(!this->has_decoded_frame.load(std::memory_order_acquire))
 			return !this->quit;
 
@@ -1446,18 +1449,36 @@ bool IO::MainLoop()
 
 		int frame_index;
 		bool underflow = false;
+		bool waited = false;
+		float waited_ms = 0;
+		float budget_ms = 0;
 		int drained = 0;
 		size_t depth_before = 0;
 
 		if(!this->overlay_open)
 		{
-			std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
+			std::unique_lock<std::mutex> lock(this->frame_signal_mutex);
 			depth_before = this->frame_fifo.size();
 
 			while((int)this->frame_fifo.size() > this->fifo_drain_threshold)
 			{
 				this->frame_fifo.pop();
 				drained++;
+			}
+
+			if(this->frame_fifo.empty())
+			{
+				auto now = std::chrono::high_resolution_clock::now();
+				float elapsed_ms = std::chrono::duration<float, std::milli>(now - frame_start).count();
+				budget_ms = std::max(0.5f, 12.0f - elapsed_ms);
+
+				auto wait_start = now;
+				this->frame_cv.wait_for(lock,
+					std::chrono::microseconds((int)(budget_ms * 1000.0f)),
+					[this]{ return !this->frame_fifo.empty() || this->quit; });
+				waited = true;
+				waited_ms = std::chrono::duration<float, std::milli>(
+					std::chrono::high_resolution_clock::now() - wait_start).count();
 			}
 
 			if(!this->frame_fifo.empty())
@@ -1483,9 +1504,9 @@ bool IO::MainLoop()
 
 		static auto last_render_tp = std::chrono::high_resolution_clock::now();
 		static int render_log_counter = 0;
-		static int total_normal = 0, total_uflow = 0, total_drained = 0;
-		static float dt_sum = 0;
-		static int depth_sum = 0;
+		static int total_normal = 0, total_uflow = 0, total_drained = 0, total_waited_ok = 0;
+		static float dt_sum = 0, wait_sum = 0, budget_sum = 0;
+		static int depth_sum = 0, budget_count = 0;
 
 		auto now_r = std::chrono::high_resolution_clock::now();
 		float render_dt = std::chrono::duration<float, std::milli>(now_r - last_render_tp).count();
@@ -1495,6 +1516,13 @@ bool IO::MainLoop()
 		depth_sum += (int)depth_before;
 		if(underflow)
 			total_uflow++;
+		else if(waited)
+		{
+			total_waited_ok++;
+			wait_sum += waited_ms;
+			budget_sum += budget_ms;
+			budget_count++;
+		}
 		else if(drained > 0)
 			total_drained++;
 		else
@@ -1504,19 +1532,22 @@ bool IO::MainLoop()
 		{
 			float avg_dt = dt_sum / render_log_counter;
 			float avg_depth = (float)depth_sum / render_log_counter;
-			CHIAKI_LOGI(this->log, "RENDER 2s: ok=%d uflow=%d drain=%d avgdt=%.1fms depth=%.1f idx=%d",
-				total_normal, total_uflow, total_drained,
-				avg_dt, avg_depth, frame_index);
+			float avg_wait = total_waited_ok > 0 ? wait_sum / total_waited_ok : 0;
+			float avg_budget = budget_count > 0 ? budget_sum / budget_count : 0;
+			CHIAKI_LOGI(this->log, "RENDER 2s: ok=%d wait=%d(%.1fms/%.1fms) uflow=%d drain=%d avgdt=%.1fms depth=%.1f",
+				total_normal, total_waited_ok, avg_wait, avg_budget, total_uflow, total_drained,
+				avg_dt, avg_depth);
 			render_log_counter = 0;
-			total_normal = total_uflow = total_drained = 0;
-			dt_sum = 0;
-			depth_sum = 0;
+			total_normal = total_uflow = total_drained = total_waited_ok = 0;
+			dt_sum = wait_sum = budget_sum = 0;
+			depth_sum = budget_count = 0;
 		}
 
-		if(underflow || drained > 0)
-			CHIAKI_LOGI(this->log, "RENDER dt=%.1fms fifo=%zu idx=%d %s%s",
+		if(waited || underflow || drained > 0)
+			CHIAKI_LOGI(this->log, "RENDER dt=%.1fms fifo=%zu idx=%d%s%s%s",
 				render_dt, depth_before, frame_index,
-				underflow ? "UNDERFLOW" : "",
+				waited && !underflow ? " WAITED" : "",
+				underflow ? (budget_ms > 0 ? " UNDERFLOW(budget expired)" : " UNDERFLOW") : "",
 				drained > 0 ? " DRAINED" : "");
 
 		return !this->quit;
