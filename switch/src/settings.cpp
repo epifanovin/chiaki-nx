@@ -207,6 +207,9 @@ void Settings::ParseFile()
 				case DITHERING:
 					this->SetDithering(atoi(value.c_str()));
 					break;
+				case SMOOTH_MODE:
+					this->SetSmoothMode(atoi(value.c_str()));
+					break;
 			case TARGET:
 					CHIAKI_LOGV(&this->log, "TARGET %s", value.c_str());
 					if(current_host != nullptr)
@@ -269,6 +272,7 @@ int Settings::WriteFile()
 			config_file << "audio_backend = audren\n";
 		config_file << "show_stats = " << this->global_show_stats << "\n";
 		config_file << "dithering = " << this->global_dithering << "\n";
+		config_file << "smooth_mode = " << this->global_smooth_mode << "\n";
 
 		if(this->global_psn_online_id.length())
 			config_file << "psn_online_id = \"" << this->global_psn_online_id << "\"\n";
@@ -989,5 +993,17 @@ void Settings::SetDithering(int value)
 	if(value < 0) value = 0;
 	if(value > 128) value = 128;
 	this->global_dithering = value;
+}
+
+int Settings::GetSmoothMode()
+{
+	return this->global_smooth_mode;
+}
+
+void Settings::SetSmoothMode(int value)
+{
+	if(value < 0) value = 0;
+	if(value > 1) value = 1;
+	this->global_smooth_mode = value;
 }
 

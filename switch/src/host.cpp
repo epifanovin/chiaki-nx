@@ -182,10 +182,12 @@ int Host::InitSession(IO *user)
 
 	chiaki_connect_info.ps5 = this->IsPS5();
 	chiaki_connect_info.enable_keyboard = true;
-	user->SetDecodeQueueSize(4);
+	bool smoothest = Settings::GetInstance()->GetSmoothMode() == 1;
+	user->SetDecodeQueueSize(smoothest ? 6 : 4);
 	user->SetAudioVolume(this->audio_volume);
 	user->SetStickDeadzone(this->stick_deadzone);
 	user->SetDithering(Settings::GetInstance()->GetDithering());
+	user->SetFifoDrainThreshold(smoothest ? 3 : 2);
 	user->SetAudioBackend(this->audio_backend);
 
 	user->FreeVideo();

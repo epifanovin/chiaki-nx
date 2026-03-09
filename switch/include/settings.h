@@ -76,8 +76,9 @@ class Settings
 			int global_auto_connect = 0;
 			std::string global_last_host = "";
 			AudioBackend global_audio_backend = AUDIO_BACKEND_SDL;
-			int global_show_stats = 0;
-			int global_dithering = 0;
+		int global_show_stats = 0;
+		int global_dithering = 0;
+		int global_smooth_mode = 0;
 
 		typedef enum configurationitem
 		{
@@ -106,6 +107,7 @@ class Settings
 				AUDIO_BACKEND_KEY,
 				SHOW_STATS,
 				DITHERING,
+				SMOOTH_MODE,
 			} ConfigurationItem;
 
 		// dummy parser implementation
@@ -136,6 +138,7 @@ class Settings
 				{AUDIO_BACKEND_KEY, std::regex("^\\s*audio_backend\\s*=\\s*\"?(sdl|audren)\"?")},
 				{SHOW_STATS, std::regex("^\\s*show_stats\\s*=\\s*\"?(0|1)\"?")},
 				{DITHERING, std::regex("^\\s*dithering\\s*=\\s*\"?(\\d+)\"?")},
+			{SMOOTH_MODE, std::regex("^\\s*smooth_mode\\s*=\\s*\"?(\\d+)\"?")},
 			};
 
 		ConfigurationItem ParseLine(std::string * line, std::string * value);
@@ -227,8 +230,11 @@ class Settings
 		int GetShowStats();
 		void SetShowStats(int value);
 
-		int GetDithering();
-		void SetDithering(int value);
+	int GetDithering();
+	void SetDithering(int value);
+
+	int GetSmoothMode();
+	void SetSmoothMode(int value);
 
 
 		ChiakiTarget GetChiakiTarget(Host * host);

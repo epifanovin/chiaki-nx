@@ -163,6 +163,15 @@ void IO::SetFrameQueueSize(int value)
 	this->frame_queue_size = value;
 }
 
+void IO::SetFifoDrainThreshold(int value)
+{
+	if(value < 2)
+		value = 2;
+	if(value > this->frame_queue_size - 2)
+		value = this->frame_queue_size - 2;
+	this->fifo_drain_threshold = value;
+}
+
 void IO::SetAudioBufferMax(int value)
 {
 	if(value < 4000)
@@ -369,11 +378,23 @@ bool IO::VideoCB(uint8_t *buf, size_t buf_size, int32_t frames_lost, bool frame_
 	this->has_decoded_frame.store(true, std::memory_order_release);
 	this->next_frame_index = (decoded_index + 1) % this->frame_queue_size;
 
+	size_t fifo_sz;
 	{
 		std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
 		this->new_frame_available.store(true, std::memory_order_release);
 		this->frame_fifo.push(decoded_index);
+		fifo_sz = this->frame_fifo.size();
 	}
+
+	static auto last_decode_tp = std::chrono::high_resolution_clock::now();
+	static int decode_log_counter = 0;
+	auto now_d = std::chrono::high_resolution_clock::now();
+	float decode_dt = std::chrono::duration<float, std::milli>(now_d - last_decode_tp).count();
+	last_decode_tp = now_d;
+
+	if(decode_log_counter++ % 60 == 0)
+		CHIAKI_LOGI(this->log, "DECODE dt=%.1fms dec=%.1fms idx=%d fifo=%zu lost=%d",
+			decode_dt, decode_us / 1000.0f, decoded_index, fifo_sz, (int)frames_lost);
 
 	return true;
 }
@@ -477,6 +498,7 @@ bool IO::InitVideo(int video_width, int video_height, int screen_width, int scre
 	this->frames_have_sw_buffers = !this->use_deko_renderer;
 	this->current_frame_index.store(0, std::memory_order_release);
 	this->has_decoded_frame.store(false, std::memory_order_release);
+	this->fifo_primed.store(false, std::memory_order_release);
 	this->next_frame_index = 0;
 	{
 		std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
@@ -1413,14 +1435,30 @@ bool IO::MainLoop()
 		if(!this->has_decoded_frame.load(std::memory_order_acquire))
 			return !this->quit;
 
+		if(!this->fifo_primed.load(std::memory_order_acquire))
+		{
+			std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
+			if((int)this->frame_fifo.size() >= this->fifo_drain_threshold)
+				this->fifo_primed.store(true, std::memory_order_release);
+			else
+				return !this->quit;
+		}
+
 		int frame_index;
+		bool underflow = false;
+		int drained = 0;
+		size_t depth_before = 0;
 
 		if(!this->overlay_open)
 		{
 			std::lock_guard<std::mutex> lock(this->frame_signal_mutex);
+			depth_before = this->frame_fifo.size();
 
-			while(this->frame_fifo.size() > 2)
+			while((int)this->frame_fifo.size() > this->fifo_drain_threshold)
+			{
 				this->frame_fifo.pop();
+				drained++;
+			}
 
 			if(!this->frame_fifo.empty())
 			{
@@ -1431,6 +1469,7 @@ bool IO::MainLoop()
 			else
 			{
 				frame_index = this->last_displayed_index;
+				underflow = true;
 			}
 		}
 		else
@@ -1441,6 +1480,44 @@ bool IO::MainLoop()
 		AVFrame *frame = this->frames ? this->frames[frame_index] : nullptr;
 		if(frame)
 			this->deko_video_renderer->Draw(frame, this->screen_width, this->screen_height);
+
+		static auto last_render_tp = std::chrono::high_resolution_clock::now();
+		static int render_log_counter = 0;
+		static int total_normal = 0, total_uflow = 0, total_drained = 0;
+		static float dt_sum = 0;
+		static int depth_sum = 0;
+
+		auto now_r = std::chrono::high_resolution_clock::now();
+		float render_dt = std::chrono::duration<float, std::milli>(now_r - last_render_tp).count();
+		last_render_tp = now_r;
+
+		dt_sum += render_dt;
+		depth_sum += (int)depth_before;
+		if(underflow)
+			total_uflow++;
+		else if(drained > 0)
+			total_drained++;
+		else
+			total_normal++;
+
+		if(++render_log_counter >= 120)
+		{
+			float avg_dt = dt_sum / render_log_counter;
+			float avg_depth = (float)depth_sum / render_log_counter;
+			CHIAKI_LOGI(this->log, "RENDER 2s: ok=%d uflow=%d drain=%d avgdt=%.1fms depth=%.1f idx=%d",
+				total_normal, total_uflow, total_drained,
+				avg_dt, avg_depth, frame_index);
+			render_log_counter = 0;
+			total_normal = total_uflow = total_drained = 0;
+			dt_sum = 0;
+			depth_sum = 0;
+		}
+
+		if(underflow || drained > 0)
+			CHIAKI_LOGI(this->log, "RENDER dt=%.1fms fifo=%zu idx=%d %s%s",
+				render_dt, depth_before, frame_index,
+				underflow ? "UNDERFLOW" : "",
+				drained > 0 ? " DRAINED" : "");
 
 		return !this->quit;
 	}

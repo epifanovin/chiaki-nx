@@ -106,6 +106,8 @@ class IO
 	std::atomic<bool> new_frame_available{false};
 	std::queue<int> frame_fifo;
 	int last_displayed_index = 0;
+	int fifo_drain_threshold = 2;
+	std::atomic<bool> fifo_primed{false};
 #ifdef __SWITCH__
 	Thread input_thread;
 	bool input_thread_created = false;
@@ -162,8 +164,9 @@ class IO
 		void SetDecodeQueueSize(int value);
 		void SetAudioVolume(int value);
 		void SetStickDeadzone(int value);
-		void SetDithering(int strength);
-		void SetFrameQueueSize(int value);
+	void SetDithering(int strength);
+	void SetFrameQueueSize(int value);
+	void SetFifoDrainThreshold(int value);
 		void SetAudioBufferMax(int value);
 		void SetAudioBackend(int value);
 
