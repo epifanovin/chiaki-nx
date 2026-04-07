@@ -953,7 +953,7 @@ bool MainApplication::BuildConfigurationMenu(brls::List *ls, Host *host)
 	};
 	audio_backend->getValueSelectedEvent()->subscribe(audio_backend_cb);
 	ls->addView(audio_backend);
-	add_hint("Audren is the native Switch audio driver, lower latency than SDL");
+	add_hint("Audren: native Switch audio driver with jitter-resistant buffering");
 
 	if(host == nullptr)
 	{

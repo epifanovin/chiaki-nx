@@ -191,6 +191,7 @@ int Host::InitSession(IO *user)
 	user->SetStickDeadzone(this->stick_deadzone);
 	user->SetDithering(Settings::GetInstance()->GetDithering());
 	user->SetFifoDrainThreshold(drain_threshold);
+	user->SetAudioExtraLatency(25);
 	user->SetAudioBackend(this->audio_backend);
 
 	user->FreeVideo();

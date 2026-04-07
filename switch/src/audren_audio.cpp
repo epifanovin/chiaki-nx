@@ -29,7 +29,7 @@ AudrenAudio::~AudrenAudio()
 	Cleanup();
 }
 
-bool AudrenAudio::Init(unsigned int channels, unsigned int sample_rate_)
+bool AudrenAudio::Init(unsigned int channels, unsigned int sample_rate_, int extra_latency_ms)
 {
 	if(initialized)
 		Cleanup();
@@ -37,7 +37,9 @@ bool AudrenAudio::Init(unsigned int channels, unsigned int sample_rate_)
 	channel_count = (int)channels;
 	sample_rate = (int)sample_rate_;
 
-	const int latency_frames = 5;
+	int extra_samples = (sample_rate * extra_latency_ms) / 1000;
+	int extra_frames = (extra_samples + AUDREN_SAMPLES_PER_FRAME_48KHZ - 1) / AUDREN_SAMPLES_PER_FRAME_48KHZ;
+	const int latency_frames = 5 + extra_frames;
 	samples_per_buf = latency_frames * AUDREN_SAMPLES_PER_FRAME_48KHZ;
 	buffer_size = samples_per_buf * channel_count * (int)sizeof(int16_t);
 	current_size = 0;
@@ -105,7 +107,9 @@ bool AudrenAudio::Init(unsigned int channels, unsigned int sample_rate_)
 	audrvVoiceStart(&driver, 0);
 	initialized = true;
 
-	brls::Logger::info("Audren: Init done (ch={}, rate={})", channel_count, sample_rate);
+	brls::Logger::info("Audren: Init done (ch={}, rate={}, latency_frames={}, buf={}ms)",
+		channel_count, sample_rate, latency_frames,
+		(int)(samples_per_buf * 1000 / sample_rate));
 	return true;
 }
 

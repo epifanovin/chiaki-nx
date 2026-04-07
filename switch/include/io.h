@@ -87,6 +87,7 @@ class IO
 		int stick_deadzone = 0;
 		int audio_buffer_max = 16000;
 		int audio_backend_mode = 0;
+		int audio_extra_latency_ms = 0;
 #ifdef __SWITCH__
 		AudrenAudio audren;
 #endif
@@ -171,6 +172,7 @@ class IO
 	void SetFifoDrainThreshold(int value);
 		void SetAudioBufferMax(int value);
 		void SetAudioBackend(int value);
+		void SetAudioExtraLatency(int ms);
 
 		uint64_t GetFramesDecoded() { return frames_decoded.load(std::memory_order_relaxed); }
 		uint64_t GetFramesRendered() { return frames_rendered.load(std::memory_order_relaxed); }

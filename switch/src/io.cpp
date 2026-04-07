@@ -186,6 +186,11 @@ void IO::SetAudioBackend(int value)
 	this->audio_backend_mode = value;
 }
 
+void IO::SetAudioExtraLatency(int ms)
+{
+	this->audio_extra_latency_ms = ms;
+}
+
 void IO::SetMesaConfig()
 {
 	//TRACE("%s", "Mesaconfig");
@@ -405,9 +410,9 @@ void IO::InitAudioCB(unsigned int channels, unsigned int rate)
 #ifdef __SWITCH__
 	if(this->audio_backend_mode == 1)
 	{
-		if(this->audren.Init(channels, rate))
+		if(this->audren.Init(channels, rate, this->audio_extra_latency_ms))
 		{
-			CHIAKI_LOGI(this->log, "Audren audio backend initialized");
+			CHIAKI_LOGI(this->log, "Audren audio backend initialized (extra_latency=%dms)", this->audio_extra_latency_ms);
 			return;
 		}
 		CHIAKI_LOGW(this->log, "Audren init failed, falling back to SDL");

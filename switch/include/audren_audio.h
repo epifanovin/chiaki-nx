@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <cstddef>
 
-#define AUDREN_BUFFER_COUNT 5
+#define AUDREN_BUFFER_COUNT 8
 
 class AudrenAudio
 {
@@ -17,7 +17,7 @@ public:
 	AudrenAudio();
 	~AudrenAudio();
 
-	bool Init(unsigned int channels, unsigned int sample_rate);
+	bool Init(unsigned int channels, unsigned int sample_rate, int extra_latency_ms = 0);
 	void Cleanup();
 	void QueueAudio(const int16_t *buf, size_t samples_count, float volume);
 	int GetQueuedBytes();
