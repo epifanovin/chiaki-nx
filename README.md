@@ -1,3 +1,5 @@
+![chiaki-nx Logo](switch/nro_icon.jpg) 
+
 # chiaki-nx
 
 A Nintendo Switch PlayStation Remote Play client, based on [chiaki-ng](https://github.com/streetpea/chiaki-ng).
@@ -7,6 +9,12 @@ This fork focuses exclusively on the Switch platform — optimizing streaming qu
 ## Disclaimer
 
 This project is not endorsed or certified by Sony Interactive Entertainment LLC.
+
+
+## Installation and usage
+
+- Put .nro to /switch folder, connect to PS like in og Chiaki.
+- To exit to menu touch left screen edge to stop streaming
 
 ## What chiaki-nx adds over chiaki-ng
 
