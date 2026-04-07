@@ -1,38 +1,60 @@
+# chiaki-nx
 
-![chiaki-ng Logo](gui/res/chiaking-logo.svg)
+A Nintendo Switch PlayStation Remote Play client, based on [chiaki-ng](https://github.com/streetpea/chiaki-ng).
 
-# [chiaki-ng](https://streetpea.github.io/chiaki-ng/)
-
-An open source PlayStation remote play project serving as the next-generation of Chiaki with improvements and ongoing support now that the original Chiaki project is in maintenance mode only. [Click here to see the accompanying site for documentation, updates and more](https://streetpea.github.io/chiaki-ng/).
-
-## Discord
-[chiaki-ng community Discord](https://discord.gg/tAMbRuwXDH)
+This fork focuses exclusively on the Switch platform — optimizing streaming quality, input latency, and audio/video stability for the Tegra X1 hardware.
 
 ## Disclaimer
+
 This project is not endorsed or certified by Sony Interactive Entertainment LLC.
 
-Chiaki is a Free and Open Source Software Client for PlayStation 4 and PlayStation 5 Remote Play
-for Linux, FreeBSD, OpenBSD, Android, macOS, Windows, Nintendo Switch and potentially even more platforms.
+## What chiaki-nx adds over chiaki-ng
 
-## Nintendo Switch (chiaki-nx)
+The upstream chiaki-ng Switch build uses SDL/Mesa for rendering and provides basic streaming functionality. chiaki-nx replaces and extends this with:
 
-The Switch build uses the Deko3D native GPU API and is optimized for the Tegra X1 hardware.
+### Rendering
 
-### Features
+- **Deko3D native GPU renderer** — bypasses OpenGL/Mesa entirely, talks directly to the Tegra GPU through Nintendo's native API. Based on the Deko3D rendering approach pioneered by XITRIX and Cooler3D in [Moonlight-Switch](https://github.com/XITRIX/Moonlight-Switch).
+- **Debanding shader** — GPU fragment shader that smooths compression banding in gradients (Off/Low/Medium/High presets, no measurable performance cost)
+- **Triple-buffered swapchain** with display-paced vsync for tear-free presentation
 
-- **Deko3D rendering** -- native Tegra GPU path, no OpenGL/Vulkan translation overhead
-- **HEVC (H.265) streaming** -- up to 1080p from PS4/PS5
-- **Jitter buffer** -- 1-frame FIFO absorbs PS5 encode timing variation for stutter-free 60fps playback (~8ms avg latency cost)
-- **Debanding filter** -- GPU shader that smooths compression banding in gradients at no measurable performance cost
-- **Early IDR recovery** -- requests keyframes on frame sequence gaps, not just FEC failure, for faster recovery from packet loss
-- **Bitrate control** -- adjustable 0-50 Mbps with auto mode
-- **DualSense haptics** -- rumble passthrough with granular intensity control (1% steps)
-- **Stats HUD** -- real-time overlay showing FPS, decode time, and network statistics
-- **On-screen keyboard** -- for PSN login and text input
+### Frame Smoothing
 
-### Building for Switch
+- **FIFO jitter buffer** — decoded frames queue through a configurable-depth FIFO instead of latest-frame-wins, absorbing PS5 encode timing variation
+- **Adaptive condvar wait** — when the buffer runs dry, a vsync-budget-aware timed wait catches late frames instead of immediately underflowing
+- **Configurable buffer depth** — Smooth (1-frame, ~17ms latency) and Smoothest (4/6/8-frame) presets for trading latency against stutter resistance in heavy scenes
+- **FIFO pre-fill gating** — rendering waits until the buffer reaches target depth at stream start, eliminating startup stutter
 
-Requires devkitPro with devkitA64, libnx, and switch portlibs.
+### Audio
+
+- **Audren backend** — native Switch audio driver replacing SDL audio, with lower latency and direct hardware submission
+- **Jitter-resistant audio buffering** — increased wavebuf count and configurable extra latency to absorb Wi-Fi/Bluetooth coexistence jitter on the Switch's shared radio
+
+### Streaming & Network
+
+- **HEVC (H.265)** — hardware-accelerated decoding up to 1080p from PS4/PS5
+- **Early IDR recovery** — requests keyframes on frame sequence gaps (not just FEC failure), cutting recovery time from packet loss
+- **Enlarged UDP receive buffer** (512KB) — reduces packet loss from Wi-Fi burst delays
+- **Adjustable bitrate** — 0–50 Mbps with auto mode
+
+### Input & Haptics
+
+- **Dedicated 120Hz input polling thread** — reads HID directly on core 1, bypassing SDL for lower input latency
+- **CPU core pinning** — input on core 1, decoder/network threads on cores 2–3, preventing scheduling contention
+- **DualSense haptics** — rumble passthrough with 1% granularity (0–100%)
+- **Stick deadzone** — configurable 0–20%
+
+### UI & Quality of Life
+
+- **Stats HUD** — real-time overlay with FPS, decode time, network statistics
+- **On-screen keyboard** — system swkbd for PSN login and text input
+- **Auto-connect** — remembers last host, reconnects on launch
+- **Host discovery** — real-time online/offline tracking with Connect button state
+- **In-stream overlay** — stop streaming and settings access without leaving the stream
+
+## Building
+
+Requires [devkitPro](https://devkitpro.org/) with devkitA64, libnx, and switch portlibs.
 
 ```bash
 ./scripts/switch/build.sh
@@ -40,8 +62,21 @@ Requires devkitPro with devkitA64, libnx, and switch portlibs.
 
 Output: `build_switch/switch/chiaki-nx.nro`
 
-### Deploying
+## Deploying
 
 ```bash
 /opt/devkitpro/tools/bin/nxlink -a <SWITCH_IP> -s build_switch/switch/chiaki-nx.nro
 ```
+
+## Credits
+
+- [Chiaki](https://git.sr.ht/~thestr4ng3r/chiaki) by **Florian Märkl (thestr4ng3r)** — the original open-source PlayStation Remote Play client that started it all
+- [chiaki-ng](https://github.com/streetpea/chiaki-ng) by **Street Pea** — next-generation continuation with active development and multi-platform support
+- **h0neybadger** — original Nintendo Switch port with Borealis GUI, audio fixes, discovery, and PS5 support
+- **kkWong** — Switch FFmpeg hardware acceleration integration
+- **xlanor** — Switch environment updates and holepunch fixes
+- [Moonlight-Switch](https://github.com/XITRIX/Moonlight-Switch) by **XITRIX** and **Cooler3D** — the Deko3D native GPU rendering implementation that served as the foundation and reference for chiaki-nx's renderer
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 — see [LICENSE](LICENSE) for details.
