@@ -39,3 +39,7 @@ chiaki.conf
 .cache/
 *.vscode
 site/
+.cursor/
+MEMORY.md
+AGENTS.md
+switch_crash_reports/
